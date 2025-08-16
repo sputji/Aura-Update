@@ -4,6 +4,7 @@ Aura-Update est un outil simple et efficace pour maintenir vos applications Wind
 
 
 Fonctionnalités principales:
+
 ° Interface graphique (GUI) : L'interface utilisateur intuitive et conviviale permet de visualiser les mises à jour disponibles et de les gérer facilement.
 
 ° Contrôle total : Le programme ne lance aucune mise à jour sans votre permission explicite. Vous pouvez choisir de mettre à jour tous les programmes d'un coup ou de les installer un par un.

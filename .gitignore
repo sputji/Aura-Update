@@ -1,0 +1,8 @@
+# Fichiers et dossiers generes par le programme
+/logs/
+*.exe
+*.log
+
+# Fichiers temporaires de Windows
+Thumbs.db
+Desktop.ini

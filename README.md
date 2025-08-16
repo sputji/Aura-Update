@@ -25,4 +25,5 @@ Comment l'utiliser :
 Prérequis:
 
 ° Windows 10/11 : Le programme est conçu pour fonctionner sur les versions modernes de Windows.
+
 ° winget : Le gestionnaire de paquets de Windows doit être installé sur votre système.

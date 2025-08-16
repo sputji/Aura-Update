@@ -1,4 +1,5 @@
 Aura-Update:
+
 Aura-Update est un outil simple et efficace pour maintenir vos applications Windows à jour, en s'appuyant sur le gestionnaire de paquets winget. Conçu pour offrir un contrôle total à l'utilisateur, il simplifie la gestion des mises à jour sans automatisation non désirée.
 
 

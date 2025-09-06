@@ -1,11 +1,11 @@
 # Nom du programme : Aura-Update
 # Développé par : SPUTJI
-# Version : 0.2.12
+# Version : 0.2.14
 
 # --- Définitions ---
 $ProgramName = "Aura-Update"
 $DeveloperName = "SPUTJI"
-$Version = "0.2.12"
+$Version = "0.2.14"
 
 # Déterminer le chemin du script ou de l'exécutable
 if ($PSCommandPath) {
@@ -14,13 +14,12 @@ if ($PSCommandPath) {
     $scriptPath = [System.AppDomain]::CurrentDomain.BaseDirectory.TrimEnd('\')
 }
 if (-not $scriptPath -or $scriptPath -eq "") {
-    Write-Host "Erreur : Impossible de déterminer le chemin du script ou de l'exécutable." -ForegroundColor Red
     [System.Windows.Forms.MessageBox]::Show("Erreur : Impossible de déterminer le chemin du script ou de l'exécutable.", "Erreur Critique", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
     Start-Sleep -Seconds 5
     exit
 }
 
-# Chemin des logs (dans le même dossier que l'exécutable ou le script)
+# Chemin des logs
 $logDirectory = Join-Path $scriptPath "logs"
 $logPath = Join-Path $logDirectory "Aura-Update_Log.txt"
 $errorLogPath = Join-Path $logDirectory "Aura-Update_Errors.txt"
@@ -38,21 +37,57 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] $Message"
     try {
+        if (-not (Test-Path $LogFile)) {
+            New-Item -Path $LogFile -ItemType File -Force | Out-Null
+        }
         [System.IO.File]::AppendAllText($LogFile, "$logMessage`n", [System.Text.Encoding]::UTF8)
     } catch {
         [System.Windows.Forms.MessageBox]::Show("Erreur d'écriture dans le log : $_", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
     }
 }
 
+# --- Vérifier la version de .NET Framework ---
+try {
+    $dotNetVersion = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -ErrorAction Stop).Version
+    if ($dotNetVersion -lt "4.5") {
+        Write-Log "Erreur : .NET Framework 4.5 ou supérieur requis." $errorLogPath
+        [System.Windows.Forms.MessageBox]::Show("Erreur : .NET Framework 4.5 ou supérieur requis. Veuillez l'installer depuis le site de Microsoft.", "Erreur Critique", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        exit
+    }
+    Write-Log ".NET Framework version $dotNetVersion détecté."
+} catch {
+    Write-Log "Erreur lors de la vérification de .NET Framework : $_" $errorLogPath
+    [System.Windows.Forms.MessageBox]::Show("Erreur lors de la vérification de .NET Framework : $_", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    exit
+}
+
 # --- Vérifier la disponibilité de winget ---
 function Test-Winget {
     try {
-        $wingetVersion = winget --version
-        Write-Log "Winget détecté, version : $wingetVersion"
-        return $true
+        $possiblePaths = @(
+            "$env:LocalAppData\Microsoft\WindowsApps\winget.exe",
+            "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*\winget.exe"
+        )
+        $wingetPath = $null
+        foreach ($path in $possiblePaths) {
+            $resolvedPath = (Get-Item $path -ErrorAction SilentlyContinue).FullName
+            if ($resolvedPath) {
+                $wingetPath = $resolvedPath
+                break
+            }
+        }
+        if (-not $wingetPath) {
+            Write-Log "Erreur : Winget n'est pas installé ou introuvable." $errorLogPath
+            [System.Windows.Forms.MessageBox]::Show("Erreur : Winget n'est pas installé. Veuillez installer 'App Installer' depuis le Microsoft Store.", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+            return $false, $null
+        }
+        $wingetVersion = & $wingetPath --version
+        Write-Log "Winget détecté, version : $wingetVersion, chemin : $wingetPath"
+        $env:Path += ";$(Split-Path $wingetPath -Parent)"
+        return $true, $wingetPath
     } catch {
         Write-Log "Erreur : Winget n'est pas installé ou inaccessible : $_" $errorLogPath
-        return $false
+        return $false, $null
     }
 }
 
@@ -104,7 +139,6 @@ try {
 
 # --- Fonctions du programme ---
 
-# Fonction pour mettre à jour un programme spécifique
 function Update-Specific {
     param (
         [string]$PackageId,
@@ -126,6 +160,11 @@ function Update-Specific {
     $InstallProgress.Value = 0
 
     try {
+        $wingetResult, $wingetPath = Test-Winget
+        if (-not $wingetResult) {
+            throw "Winget.exe introuvable."
+        }
+
         if (-not (Test-Admin)) {
             Write-Log "Avertissement : Droits administrateur non détectés. Certaines mises à jour peuvent échouer." $errorLogPath
             $StatusBox.Text = "Avertissement : Exécutez l'application en mode administrateur pour les mises à jour système."
@@ -136,7 +175,7 @@ function Update-Specific {
         }
 
         $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $processInfo.FileName = "winget"
+        $processInfo.FileName = $wingetPath
         $processInfo.Arguments = "upgrade --id `"$PackageId`" --accept-package-agreements --accept-source-agreements --force --silent --disable-interactivity"
         $processInfo.RedirectStandardOutput = $true
         $processInfo.RedirectStandardError = $true
@@ -154,7 +193,7 @@ function Update-Specific {
             Start-Sleep -Milliseconds 100
         }
 
-        $output = [System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::GetEncoding(1252).GetBytes($process.StandardOutput.ReadToEnd()))
+        $output = $process.StandardOutput.ReadToEnd()
         $errorOutput = $process.StandardError.ReadToEnd()
         $process.WaitForExit()
 
@@ -187,7 +226,6 @@ function Update-Specific {
     Check-Updates
 }
 
-# Fonction pour vérifier et lister les mises à jour (seulement liste, pas d'installation)
 function Check-Updates {
     $listPanel.Controls.Clear()
     $resultBox.Text = "Recherche des mises à jour disponibles..."
@@ -208,8 +246,13 @@ function Check-Updates {
     }
 
     try {
+        $wingetResult, $wingetPath = Test-Winget
+        if (-not $wingetResult) {
+            throw "Winget.exe introuvable."
+        }
+
         $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $processInfo.FileName = "winget"
+        $processInfo.FileName = $wingetPath
         $processInfo.Arguments = "upgrade --include-unknown --disable-interactivity"
         $processInfo.RedirectStandardOutput = $true
         $processInfo.RedirectStandardError = $true
@@ -220,7 +263,7 @@ function Check-Updates {
         $processInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
 
         $process = [System.Diagnostics.Process]::Start($processInfo)
-        $wingetOutput = [System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::GetEncoding(1252).GetBytes($process.StandardOutput.ReadToEnd()))
+        $wingetOutput = $process.StandardOutput.ReadToEnd()
         $errorOutput = $process.StandardError.ReadToEnd()
         $process.WaitForExit()
 
@@ -235,7 +278,6 @@ function Check-Updates {
         $resultBox.Text = "Erreur lors de la récupération des mises à jour : $_"
         $updateAllButton.Enabled = $false
         Write-Log "Erreur lors de la récupération des mises à jour : $_" $errorLogPath
-        Write-Log "Sortie d'erreur de winget : $errorOutput" $errorLogPath
         return
     }
 
@@ -249,6 +291,7 @@ function Check-Updates {
         $headerLabel = New-Object System.Windows.Forms.Label
         $headerLabel.Text = $headers[$i]
         $headerLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+        $headerLabel.ForeColor = [System.Drawing.Color]::White
         $headerLabel.Location = New-Object System.Drawing.Point($columnPositions[$i], 5)
         $headerLabel.Size = New-Object System.Drawing.Size(100, 20)
         $listPanel.Controls.Add($headerLabel)
@@ -264,12 +307,13 @@ function Check-Updates {
             continue
         }
 
-        if ($line.Trim() -match 'package' -or $line.Trim() -match '\(' -or $line.Trim() -match 'installing' -or $line.Trim() -match 'Trouv' -or $line.Trim() -match 'La licence' -or $line.Trim() -match '^[-/|\\]+$') {
+        if ($line.Trim() -match 'package' -or $line.Trim() -match '\(' -or $line.Trim() -match 'installing' -or $line.Trim() -match 'Trouv' -or $line.Trim() -match 'La licence' -or $line.Trim() -match '^[-/|\\]+$' -or $line.Trim() -match '^\s*Nom\s*ID\s*Version\s*Disponible\s*Source\s*$') {
             continue
         }
 
         $parts = $line.Trim() -split '\s{2,}'
-        if ($parts.Count -lt 4) {
+        if ($parts.Count -lt 4 -or $parts.Count -gt 5) {
+            Write-Log "Ligne ignorée (format invalide) : $line"
             continue
         }
 
@@ -278,13 +322,11 @@ function Check-Updates {
         $currentVersion = $parts[2]
         $availableVersion = $parts[3]
 
-        # Ignorer les entrées illisibles ou inaccessibles
         if ($name -eq '' -or $name -match '^[-/|\\]+$' -or $id -eq '' -or $id -match '^[-/|\\]+$' -or $currentVersion -match '^[-/|\\]+$' -or $availableVersion -match '^[-/|\\]+$') {
             Write-Log "Entrée ignorée (illisible ou inaccessible) : $line"
             continue
         }
 
-        # Ignorer les packages exclus
         if ($excludedPackages -contains $id) {
             Write-Log "Mise à jour ignorée pour $name (ID: $id) : Package système non pris en charge."
             continue
@@ -294,24 +336,28 @@ function Check-Updates {
 
         $nameLabel = New-Object System.Windows.Forms.Label
         $nameLabel.Text = $name
+        $nameLabel.ForeColor = [System.Drawing.Color]::White
         $nameLabel.Location = New-Object System.Drawing.Point(10, $yPosition)
         $nameLabel.Size = New-Object System.Drawing.Size(140, 20)
         $listPanel.Controls.Add($nameLabel)
 
         $idLabel = New-Object System.Windows.Forms.Label
         $idLabel.Text = $id
+        $idLabel.ForeColor = [System.Drawing.Color]::White
         $idLabel.Location = New-Object System.Drawing.Point(160, $yPosition)
         $idLabel.Size = New-Object System.Drawing.Size(170, 20)
         $listPanel.Controls.Add($idLabel)
 
         $currentVersionLabel = New-Object System.Windows.Forms.Label
         $currentVersionLabel.Text = $currentVersion
+        $currentVersionLabel.ForeColor = [System.Drawing.Color]::White
         $currentVersionLabel.Location = New-Object System.Drawing.Point(340, $yPosition)
         $currentVersionLabel.Size = New-Object System.Drawing.Size(90, 20)
         $listPanel.Controls.Add($currentVersionLabel)
 
         $availableVersionLabel = New-Object System.Windows.Forms.Label
         $availableVersionLabel.Text = $availableVersion
+        $availableVersionLabel.ForeColor = [System.Drawing.Color]::White
         $availableVersionLabel.Location = New-Object System.Drawing.Point(440, $yPosition)
         $availableVersionLabel.Size = New-Object System.Drawing.Size(90, 20)
         $listPanel.Controls.Add($availableVersionLabel)
@@ -320,6 +366,10 @@ function Check-Updates {
         $updateButton.Text = "Mettre à jour"
         $updateButton.Location = New-Object System.Drawing.Point(540, $yPosition)
         $updateButton.Size = New-Object System.Drawing.Size(100, 25)
+        $updateButton.BackColor = [System.Drawing.Color]::FromArgb(30, 144, 255)
+        $updateButton.ForeColor = [System.Drawing.Color]::White
+        $updateButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $updateButton.FlatAppearance.BorderSize = 0
         $updateButton.Tag = @{ PackageId = $id; PackageName = $name }
         $updateButton.Add_Click({
             param($sender)
@@ -340,7 +390,6 @@ function Check-Updates {
     }
 }
 
-# Fonction pour mettre à jour tous les programmes
 function Update-All {
     $resultBox.Text = "Mise à jour de tous les programmes en cours..."
     $resultBox.Refresh()
@@ -350,6 +399,11 @@ function Update-All {
     $installProgress.Value = 0
 
     try {
+        $wingetResult, $wingetPath = Test-Winget
+        if (-not $wingetResult) {
+            throw "Winget.exe introuvable."
+        }
+
         if (-not (Test-Admin)) {
             Write-Log "Avertissement : Droits administrateur non détectés. Certaines mises à jour peuvent échouer." $errorLogPath
             $resultBox.Text = "Avertissement : Exécutez l'application en mode administrateur pour les mises à jour système."
@@ -360,7 +414,7 @@ function Update-All {
         }
 
         $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $processInfo.FileName = "winget"
+        $processInfo.FileName = $wingetPath
         $processInfo.Arguments = "upgrade --all --accept-package-agreements --accept-source-agreements --force --silent --disable-interactivity --include-unknown"
         $processInfo.RedirectStandardOutput = $true
         $processInfo.RedirectStandardError = $true
@@ -373,18 +427,18 @@ function Update-All {
         $process = [System.Diagnostics.Process]::Start($processInfo)
         
         for ($i = 0; $i -le 50; $i += 5) {
-            $downloadProgress.Value = $i
-            $downloadProgress.Refresh()
+            $DownloadProgress.Value = $i
+            $DownloadProgress.Refresh()
             Start-Sleep -Milliseconds 200
         }
 
-        $output = [System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::GetEncoding(1252).GetBytes($process.StandardOutput.ReadToEnd()))
+        $output = $process.StandardOutput.ReadToEnd()
         $errorOutput = $process.StandardError.ReadToEnd()
         $process.WaitForExit()
 
         for ($i = 50; $i -le 100; $i += 5) {
-            $installProgress.Value = $i
-            $installProgress.Refresh()
+            $InstallProgress.Value = $i
+            $InstallProgress.Refresh()
             Start-Sleep -Milliseconds 200
         }
 
@@ -409,99 +463,131 @@ function Update-All {
         Write-Log "Erreur critique lors de la mise à jour complète : $_" $errorLogPath
     }
 
-    $downloadProgress.Value = 100
-    $installProgress.Value = 100
-    $downloadProgress.Refresh()
-    $installProgress.Refresh()
+    $DownloadProgress.Value = 100
+    $InstallProgress.Value = 100
+    $DownloadProgress.Refresh()
+    $InstallProgress.Refresh()
     Check-Updates
 }
 
-# --- Création de l'interface graphique ---
+# --- Création de l'interface graphique moderne ---
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "$ProgramName - v$Version par $DeveloperName"
-$form.Size = New-Object System.Drawing.Size(750, 700) # Augmenté pour inclure le bouton
+$form.Text = "$ProgramName - v$Version"
+$form.Size = New-Object System.Drawing.Size(800, 700)
 $form.StartPosition = "CenterScreen"
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 $form.FormBorderStyle = "FixedSingle"
 $form.MaximizeBox = $false
+$form.BackColor = [System.Drawing.Color]::FromArgb(28, 28, 28)
 
-# Ajout d'une icône à la fenêtre (icône par défaut de xAI, ajustable)
-$iconPath = "https://x.ai/favicon.ico" # Icône temporaire, à remplacer par un fichier local si besoin
+# Utiliser l'icône locale favicon.ico
+$iconPath = Join-Path $scriptPath "favicon.ico"
 try {
-    $webClient = New-Object System.Net.WebClient
-    $iconData = $webClient.DownloadData($iconPath)
-    $ms = New-Object System.IO.MemoryStream(,$iconData)
-    $form.Icon = [System.Drawing.Icon]::FromHandle((New-Object System.Drawing.Bitmap($ms)).GetHicon())
+    if (Test-Path $iconPath) {
+        $form.Icon = [System.Drawing.Icon]::new($iconPath)
+    } else {
+        Write-Log "Icône favicon.ico introuvable dans $scriptPath" $errorLogPath
+    }
 } catch {
     Write-Log "Erreur lors du chargement de l'icône : $_" $errorLogPath
 }
 
 $titleLabel = New-Object System.Windows.Forms.Label
 $titleLabel.Text = "$ProgramName"
-$titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$titleLabel.ForeColor = [System.Drawing.Color]::White
 $titleLabel.AutoSize = $true
-$titleLabel.Location = New-Object System.Drawing.Point(10, 10)
+$titleLabel.Location = New-Object System.Drawing.Point(20, 20)
 $form.Controls.Add($titleLabel)
+
+$versionLabel = New-Object System.Windows.Forms.Label
+$versionLabel.Text = "v$Version par $DeveloperName"
+$versionLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Regular)
+$versionLabel.ForeColor = [System.Drawing.Color]::Gray
+$versionLabel.AutoSize = $true
+$versionLabel.Location = New-Object System.Drawing.Point(20, 50)
+$form.Controls.Add($versionLabel)
 
 $listPanel = New-Object System.Windows.Forms.Panel
 $listPanel.AutoScroll = $true
-$listPanel.Location = New-Object System.Drawing.Point(10, 50)
-$listPanel.Size = New-Object System.Drawing.Size(660, 400)
+$listPanel.Location = New-Object System.Drawing.Point(20, 80)
+$listPanel.Size = New-Object System.Drawing.Size(760, 400)
+$listPanel.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
 $listPanel.BorderStyle = "FixedSingle"
 $form.Controls.Add($listPanel)
 
 $downloadProgress = New-Object System.Windows.Forms.ProgressBar
-$downloadProgress.Location = New-Object System.Drawing.Point(10, 460)
-$downloadProgress.Size = New-Object System.Drawing.Size(320, 20)
+$downloadProgress.Location = New-Object System.Drawing.Point(20, 500)
+$downloadProgress.Size = New-Object System.Drawing.Size(360, 20)
 $downloadProgress.Style = "Continuous"
+$downloadProgress.ForeColor = [System.Drawing.Color]::FromArgb(30, 144, 255)
+$downloadProgress.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
 $form.Controls.Add($downloadProgress)
 
 $downloadLabel = New-Object System.Windows.Forms.Label
 $downloadLabel.Text = "Téléchargement :"
-$downloadLabel.Location = New-Object System.Drawing.Point(10, 440)
+$downloadLabel.ForeColor = [System.Drawing.Color]::White
+$downloadLabel.Location = New-Object System.Drawing.Point(20, 480)
 $downloadLabel.AutoSize = $true
 $form.Controls.Add($downloadLabel)
 
 $installProgress = New-Object System.Windows.Forms.ProgressBar
-$installProgress.Location = New-Object System.Drawing.Point(350, 460)
-$installProgress.Size = New-Object System.Drawing.Size(320, 20)
+$installProgress.Location = New-Object System.Drawing.Point(400, 500)
+$installProgress.Size = New-Object System.Drawing.Size(360, 20)
 $installProgress.Style = "Continuous"
+$installProgress.ForeColor = [System.Drawing.Color]::FromArgb(30, 144, 255)
+$installProgress.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
 $form.Controls.Add($installProgress)
 
 $installLabel = New-Object System.Windows.Forms.Label
 $installLabel.Text = "Installation :"
-$installLabel.Location = New-Object System.Drawing.Point(350, 440)
+$installLabel.ForeColor = [System.Drawing.Color]::White
+$installLabel.Location = New-Object System.Drawing.Point(400, 480)
 $installLabel.AutoSize = $true
 $form.Controls.Add($installLabel)
 
 $resultBox = New-Object System.Windows.Forms.TextBox
 $resultBox.Multiline = $true
-$resultBox.Location = New-Object System.Drawing.Point(10, 490)
-$resultBox.Size = New-Object System.Drawing.Size(660, 100)
+$resultBox.Location = New-Object System.Drawing.Point(20, 530)
+$resultBox.Size = New-Object System.Drawing.Size(760, 80)
 $resultBox.ReadOnly = $true
+$resultBox.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
+$resultBox.ForeColor = [System.Drawing.Color]::White
 $resultBox.BorderStyle = "FixedSingle"
 $resultBox.Text = "Cliquez sur 'Vérifier' pour commencer."
 $form.Controls.Add($resultBox)
 
 $updateAllButton = New-Object System.Windows.Forms.Button
 $updateAllButton.Text = "Tout Mettre à Jour"
-$updateAllButton.Location = New-Object System.Drawing.Point(10, 600)
-$updateAllButton.Size = New-Object System.Drawing.Size(150, 40)
+$updateAllButton.Location = New-Object System.Drawing.Point(20, 620)
+$updateAllButton.Size = New-Object System.Drawing.Size(180, 40)
+$updateAllButton.BackColor = [System.Drawing.Color]::FromArgb(30, 144, 255)
+$updateAllButton.ForeColor = [System.Drawing.Color]::White
+$updateAllButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$updateAllButton.FlatAppearance.BorderSize = 0
 $updateAllButton.Enabled = $false
 $updateAllButton.Add_Click({ Update-All })
 $form.Controls.Add($updateAllButton)
 
 $checkButton = New-Object System.Windows.Forms.Button
 $checkButton.Text = "Vérifier les mises à jour"
-$checkButton.Location = New-Object System.Drawing.Point(170, 600)
+$checkButton.Location = New-Object System.Drawing.Point(210, 620)
 $checkButton.Size = New-Object System.Drawing.Size(180, 40)
+$checkButton.BackColor = [System.Drawing.Color]::FromArgb(30, 144, 255)
+$checkButton.ForeColor = [System.Drawing.Color]::White
+$checkButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$checkButton.FlatAppearance.BorderSize = 0
 $checkButton.Add_Click({ Check-Updates })
 $form.Controls.Add($checkButton)
 
 $logButton = New-Object System.Windows.Forms.Button
 $logButton.Text = "Voir les Logs"
-$logButton.Location = New-Object System.Drawing.Point(360, 600)
-$logButton.Size = New-Object System.Drawing.Size(120, 40)
+$logButton.Location = New-Object System.Drawing.Point(400, 620)
+$logButton.Size = New-Object System.Drawing.Size(180, 40)
+$logButton.BackColor = [System.Drawing.Color]::FromArgb(100, 100, 100)
+$logButton.ForeColor = [System.Drawing.Color]::White
+$logButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$logButton.FlatAppearance.BorderSize = 0
 $logButton.Add_Click({ 
     if (Test-Path $logPath) {
         Start-Process notepad $logPath
@@ -513,8 +599,12 @@ $form.Controls.Add($logButton)
 
 $errorButton = New-Object System.Windows.Forms.Button
 $errorButton.Text = "Voir les Erreurs"
-$errorButton.Location = New-Object System.Drawing.Point(490, 600)
-$errorButton.Size = New-Object System.Drawing.Size(120, 40)
+$errorButton.Location = New-Object System.Drawing.Point(590, 620)
+$errorButton.Size = New-Object System.Drawing.Size(180, 40)
+$errorButton.BackColor = [System.Drawing.Color]::FromArgb(100, 100, 100)
+$errorButton.ForeColor = [System.Drawing.Color]::White
+$errorButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$errorButton.FlatAppearance.BorderSize = 0
 $errorButton.Add_Click({ 
     if (Test-Path $errorLogPath) {
         Start-Process notepad $errorLogPath
@@ -530,13 +620,23 @@ if (-not (Test-Admin)) {
     Write-Log "Avertissement : Droits administrateur non détectés au démarrage." $errorLogPath
     $elevateButton = New-Object System.Windows.Forms.Button
     $elevateButton.Text = "Relancer en Admin"
-    $elevateButton.Location = New-Object System.Drawing.Point(660, 10) # Ajusté pour rester dans la fenêtre
-    $elevateButton.Size = New-Object System.Drawing.Size(80, 30)
+    $elevateButton.Location = New-Object System.Drawing.Point(600, 20)
+    $elevateButton.Size = New-Object System.Drawing.Size(120, 30)
+    $elevateButton.BackColor = [System.Drawing.Color]::FromArgb(255, 69, 0)
+    $elevateButton.ForeColor = [System.Drawing.Color]::White
+    $elevateButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $elevateButton.FlatAppearance.BorderSize = 0
     $elevateButton.Add_Click({
         try {
+            if (-not (Test-Path $exePath)) {
+                Write-Log "Erreur : Le fichier $exePath n'existe pas." $errorLogPath
+                [System.Windows.Forms.MessageBox]::Show("Erreur : Le fichier $exePath n'existe pas.", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+                return
+            }
             Start-Process -FilePath $exePath -Verb RunAs
             $form.Close()
         } catch {
+            Write-Log "Erreur lors de la tentative de relance en mode administrateur : $_" $errorLogPath
             [System.Windows.Forms.MessageBox]::Show("Erreur lors de la tentative de relance en mode administrateur : $_", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
         }
     })
@@ -544,7 +644,8 @@ if (-not (Test-Admin)) {
 }
 
 # --- Exécution ---
-if (Test-Winget -and Test-Network) {
+$wingetResult, $null = Test-Winget
+if ($wingetResult -and (Test-Network)) {
     Check-Updates
 } else {
     $resultBox.Text = "Erreur : Winget ou la connexion réseau n'est pas disponible. Vérifiez votre installation et connexion."

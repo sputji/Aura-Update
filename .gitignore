@@ -1,6 +1,6 @@
 # Fichiers et dossiers generes par le programme
 /logs/
-*.exe
+!Aura-Update.exe
 *.log
 
 # Fichiers temporaires de Windows

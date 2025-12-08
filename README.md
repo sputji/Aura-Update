@@ -1,42 +1,60 @@
-Aura-Update:
-
-Aura-Update est un outil simple et efficace pour maintenir vos applications Windows à jour, en s'appuyant sur le gestionnaire de paquets winget. Conçu pour offrir un contrôle total à l'utilisateur, il simplifie la gestion des mises à jour sans automatisation non désirée.
-
-Fonctionnalités principales:
-
-° Interface graphique (GUI) : L'interface utilisateur intuitive et conviviale permet de visualiser les mises à jour disponibles et de les gérer facilement.
-
-° Contrôle total : Le programme ne lance aucune mise à jour sans votre permission explicite. Vous pouvez choisir de mettre à jour tous les programmes d'un coup ou de les installer un par un.
-
-° Transparence : Les journaux d'erreurs et de progression (Aura-Update_Log.txt et Aura-Update_Errors.txt) sont générés pour chaque exécution, vous donnant un aperçu complet des opérations.
-
-° Fiabilité : Conçu pour éviter les erreurs de lecture de sortie de winget et les problèmes de chemins de fichiers, le programme garantit une exécution fiable et une information lisible.
-
 # Aura-Update
 
-**Version** : 0.2.14  
-**Développé par** : SPUTJI  
-**Description** : Application Windows pour vérifier et installer automatiquement les mises à jour des logiciels via Winget.
+**Universal, simple, and powerful update manager.**
 
-## Prérequis
-- Windows 10 (version 2004 ou ultérieure) ou Windows 11
-- Installer "App Installer" depuis le Microsoft Store si Winget n'est pas détecté
-- .NET Framework 4.5 ou supérieur (inclus dans Windows 10/11)
-- Exécuter en mode administrateur pour les mises à jour système
+Aura-Update is a lightweight utility designed to keep your applications automatically up to date on Windows and Linux. It simplifies package management by detecting and installing available updates with a single click.
 
-## Instructions
-1. Téléchargez `Aura-Update.exe` depuis la section [Releases](#releases).
-2. Double-cliquez sur `Aura-Update.exe` pour lancer l'application.
-3. Suivez les instructions à l'écran pour vérifier ou installer les mises à jour.
-4. Consultez les logs dans le dossier "logs" pour plus de détails.
+🌐 **Official Website:** [https://www.auraneo.fr/aura-update/](https://www.auraneo.fr/aura-update/)
 
-## Téléchargement
-Rendez-vous dans la section [Releases](https://github.com/sputji/Aura-Update/releases) pour télécharger la dernière version de `Aura-Update.exe`.
+## 🚀 Features
 
-## En cas de problème
-- Vérifiez que "App Installer" est installé depuis le Microsoft Store.
-- Assurez-vous d'avoir une connexion Internet active.
-- Contactez le développeur (SPUTJI) pour assistance.
+- **Cross-Platform:** Works natively on Windows 10/11 and major Linux distributions (Debian, Ubuntu, Fedora, Arch...).
+- **Automatic Detection:** Automatically identifies your system's package manager (`winget`, `apt`, `dnf`, `pacman`...).
+- **Modern Interface:** A clean and intuitive graphical interface (Dark Theme).
+- **Administrator Mode:** Smart privilege management for installations requiring elevated rights.
+- **Batch Updates:** Update your entire system in one click.
+- **Lightweight & Fast:** Built with Electron and Node.js for optimal performance.
 
+<<<<<<< HEAD
+## 🛠️ Installation
+
+Download the latest version from our official website:
+[https://www.auraneo.fr/aura-update/](https://www.auraneo.fr/aura-update/)
+
+### Requirements
+- **Windows:** Windows 10 (1809+) or Windows 11. (Winget is usually pre-installed).
+- **Linux:** A recent distribution with `apt`, `dnf`, or `pacman`.
+
+## 🏗️ Build
+
+If you want to build the project from source:
+
+```bash
+# Install dependencies
+npm install
+
+# Build for Windows (.exe)
+npm run dist
+
+# Build for Linux (.AppImage, .deb)
+npm run dist:linux
+```
+
+Executables will be generated in the `dist/` folder.
+
+## ⚖️ License and Ownership
+
+This software is the exclusive property of the company **Aura Néo**.
+
+- **Free:** You may use this software for free.
+- **Proprietary:** The source code is closed. It is strictly prohibited to copy, modify, decompile, or pirate it.
+- **Distribution:** The software must only be downloaded from the official website.
+
+This software is governed by French law. For more details, please refer to the included `LICENSE_EN.txt` file.
+
+---
+© 2025 Aura Néo. All rights reserved.
+=======
 ## Licence
-[Ajoutez ici une licence, par exemple MIT ou GPL, si souhaité]
+[Creative Commons License](LICENSE_EN.txt)
+>>>>>>> ae47eb44871e3dce66d7748e19817c264e7470f4

@@ -1,0 +1,21 @@
+{
+    "app_title": "Gestionnaire de mises à jour",
+    "admin_active": "Admin (Actif)",
+    "admin_inactive": "Admin (Inactif)",
+    "admin_warning_title": "⚠️ Mode Administrateur requis",
+    "admin_warning_desc": "Certaines mises à jour nécessitent des privilèges élevés pour s'installer correctement.",
+    "btn_elevate": "Relancer en Admin",
+    "btn_refresh": "🔄 Vérifier",
+    "btn_update_all": "⬇️ Tout Mettre à Jour",
+    "status_welcome_title": "👋",
+    "status_welcome": "Bienvenue sur Aura-Update",
+    "status_welcome_desc": "Cliquez sur \"Vérifier\" pour rechercher des mises à jour.",
+    "status_checking": "Recherche en cours...",
+    "status_uptodate": "Tout est à jour !",
+    "status_error": "Erreur lors de la vérification",
+    "btn_update": "Mettre à jour",
+    "progress_init": "Initialisation...",
+    "progress_finished": "Terminé.",
+    "progress_no_updates": "Aucune mise à jour à faire.",
+    "confirm_update_all": "Voulez-vous vraiment tout mettre à jour ? Cela peut prendre du temps."
+}

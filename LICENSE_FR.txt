@@ -1,51 +1,29 @@
-Creative Commons Corporation ("Creative Commons") n'est pas un cabinet d'avocats et ne fournit pas de services juridiques ni de conseils juridiques. La distribution des licences publiques de Creative Commons ne crée pas de relation avocat-client ni aucune autre relation. Creative Commons met ses licences et les informations connexes à disposition "telles quelles". Creative Commons ne donne aucune garantie concernant les licences et les œuvres sous licence, et décline toute responsabilité pour les dommages résultant de leur utilisation.
+CONTRAT DE LICENCE UTILISATEUR FINAL (CLUF) - AURA-UPDATE
 
-Licence publique Creative Commons Attribution - Pas d'Utilisation Commerciale - Partage dans les Mêmes Conditions 4.0 International
+Veuillez lire attentivement ce contrat de licence avant d'utiliser le logiciel Aura-Update.
 
-En exerçant les Droits Sous Licence (tels que définis ci-dessous), vous acceptez et vous engagez à respecter les termes et conditions de cette Licence publique Creative Commons Attribution - Pas d'Utilisation Commerciale - Partage dans les Mêmes Conditions 4.0 International ("Licence publique"). Dans la mesure où cette Licence publique peut être interprétée comme un contrat, vous êtes accordé les Droits Sous Licence en contrepartie de votre acceptation de ces termes et conditions, et le Concédant (tel que défini ci-dessous) vous accorde ces droits en contrepartie des bénéfices que le Concédant tire de la mise à disposition de l'Œuvre Sous Licence sous ces termes et conditions.
+1. PROPRIÉTÉ INTELLECTUELLE
+Le logiciel "Aura-Update" (ci-après désigné "le Logiciel") est la propriété exclusive de la société "Aura Néo". Il est protégé par les lois françaises sur le droit d'auteur et les traités internationaux relatifs à la propriété intellectuelle.
+Tous les droits de propriété intellectuelle, y compris mais sans s'y limiter, les droits d'auteur, marques et secrets commerciaux, appartiennent à Aura Néo.
 
-Section 1 – Définitions.
+2. CONCESSION DE LICENCE
+Aura Néo vous concède une licence personnelle, non exclusive, non transférable et gratuite pour installer et utiliser le Logiciel sur vos machines (Windows et Linux) à des fins personnelles ou professionnelles.
 
-a. Matériel adaptatif signifie le matériel soumis au Droit d'Auteur et Droits Similaires qui est dérivé de ou basé sur l'Œuvre Sous Licence et dans lequel l'Œuvre Sous Licence est traduite, adaptée, arrangée, transformée ou modifiée d'une autre manière d'une façon nécessitant une autorisation en vertu des Droits d'Auteur et Droits Similaires détenus par le Concédant. Aux fins de cette Licence publique, où l'Œuvre Sous Licence est une composition musicale, une interprétation ou un enregistrement sonore, la synchronisation du temps de l'Œuvre Sous Licence avec une image en mouvement est toujours considérée comme un Matériel Adaptatif.
+3. RESTRICTIONS
+Il est strictement interdit de :
+- Copier, cloner ou distribuer le code source du Logiciel sans autorisation écrite explicite.
+- Modifier, désassembler, décompiler ou effectuer de l'ingénierie inverse sur le Logiciel.
+- Louer, vendre, prêter ou exploiter le Logiciel à des fins commerciales directes (vente du logiciel lui-même).
+- "Pirater" ou contourner les éventuelles mesures de protection du Logiciel.
 
-b. Droits d'Auteur et Droits Similaires signifient les droits d'auteur et/ou les droits similaires qui sont étroitement liés au droit d'auteur, y compris, mais sans s'y limiter, la performance, la radiodiffusion, la phonogramme et les droits sui generis sur les bases de données, quelle que soit la manière dont les droits sont dénommés ou classés.
+4. DISTRIBUTION
+Le Logiciel est distribué gratuitement et doit être téléchargé exclusivement depuis le site officiel : https://www.auraneo.fr/aura-update/
+Toute redistribution sur des sites tiers sans l'accord d'Aura Néo est interdite.
 
-c. Informations de Licence signifient les informations obligatoires de cette Licence qui sont intégrées dans l'Œuvre Sous Licence ou dans son objet ou sa documentation.
+5. GARANTIE ET RESPONSABILITÉ
+Le Logiciel est fourni "TEL QUEL", sans garantie d'aucune sorte, expresse ou implicite. Aura Néo ne saurait être tenue responsable des dommages directs ou indirects (y compris la perte de données ou pannes système) résultant de l'utilisation ou de l'impossibilité d'utiliser le Logiciel.
 
-d. Concédant signifie la personne ou l'entité qui offre des droits en vertu de cette Licence publique.
+6. DROIT APPLICABLE
+Ce contrat est soumis au droit français. Tout litige relatif à ce contrat sera de la compétence exclusive des tribunaux français.
 
-e. Œuvre Sous Licence signifie le travail ou la création qui est mis à disposition sous cette Licence publique.
-
-f. Vous signifie la personne ou l'entité qui exerce les Droits Sous Licence en vertu de cette Licence publique.
-
-Section 2 – Droits Sous Licence.
-
-Le Concédant vous accorde une licence non exclusive, mondiale et libre de redevance pour utiliser, copier, reproduire, distribuer, afficher publiquement, exécuter publiquement, transmettre et communiquer l'Œuvre Sous Licence sous les termes et conditions suivants :
-
-a. Vous devez fournir une attribution au Concédant, à l'Œuvre Sous Licence et aux informations de Licence.
-
-b. Vous ne pouvez pas utiliser l'Œuvre Sous Licence à des fins commerciales.
-
-c. Si vous créez un Matériel Adaptatif, vous devez le licencier sous cette même Licence publique.
-
-Section 3 – Restrictions.
-
-Les Droits Sous Licence sont accordés sous les restrictions suivantes :
-
-a. Vous ne pouvez pas utiliser l'Œuvre Sous Licence ou le Matériel Adaptatif à des fins commerciales.
-
-b. Vous ne pouvez pas utiliser l'Œuvre Sous Licence pour créer des œuvres dérivées.
-
-c. Vous ne pouvez pas distribuer l'Œuvre Sous Licence ou le Matériel Adaptatif sans fournir l'attribution requise.
-
-d. Vous ne pouvez pas distribuer l'Œuvre Sous Licence ou le Matériel Adaptatif sans inclure une copie de cette Licence publique.
-
-Section 4 – Résiliation.
-
-Cette Licence publique prendra fin automatiquement si vous ne respectez pas l'un de ses termes ou conditions.
-
-Section 5 – Divers.
-
-a. Le Concédant n'accorde aucune garantie concernant l'Œuvre Sous Licence ou les Droits Sous Licence.
-
-b. Le Concédant ne sera en aucun cas responsable des dommages directs, indirects, consécutifs ou accessoires résultant de l'utilisation de l'Œuvre Sous Licence ou des Droits Sous Licence.
+Copyright © 2025 Aura Néo. Tous droits réservés.

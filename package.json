@@ -1,0 +1,48 @@
+{
+  "name": "aura-update",
+  "version": "0.3.0",
+  "description": "A modern and professional update manager for Windows and Linux",
+  "main": "src/frontend/main.js",
+  "author": "Aura Néo",
+  "license": "Proprietary",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder -wl"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "fr.auraneo.auraupdate",
+    "productName": "Aura-Update",
+    "copyright": "Copyright © 2025 Aura Néo",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "ui/AuraUpdate.png",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "ui/AuraUpdate.png",
+      "category": "Utility"
+    },
+    "files": [
+      "src/**/*",
+      "ui/**/*",
+      "locales/**/*",
+      "LICENSE_FR.txt",
+      "LICENSE_EN.txt",
+      "package.json"
+    ]
+  }
+}

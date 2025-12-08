@@ -1,8 +1,7 @@
-# Fichiers et dossiers generes par le programme
-/logs/
-*.exe
+node_modules/
+dist/
+logs/
+progress/
+.idea/
 *.log
-
-# Fichiers temporaires de Windows
-Thumbs.db
-Desktop.ini
+*.vbs

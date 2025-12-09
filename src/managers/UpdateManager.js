@@ -10,15 +10,19 @@ class UpdateManager {
         this.detectManager();
     }
 
-    detectManager() {
+    /**
+     * Détecte le gestionnaire de paquets disponible sur le système
+     */
+    async detectManager() {
         if (this.platform === 'win32') {
             this.manager = 'winget';
         } else {
-            this.checkCommand('apt-get').then(exists => { if(exists) this.manager = 'apt'; });
-            this.checkCommand('dnf').then(exists => { if(exists) this.manager = 'dnf'; });
-            this.checkCommand('pacman').then(exists => { if(exists) this.manager = 'pacman'; });
+            // Vérification en cascade pour Linux (Debian -> Fedora -> Arch)
+            if (await this.checkCommand('apt-get')) this.manager = 'apt';
+            else if (await this.checkCommand('dnf')) this.manager = 'dnf';
+            else if (await this.checkCommand('pacman')) this.manager = 'pacman';
         }
-        logger.info(`Plateforme: ${this.platform}, Gestionnaire: ${this.manager}`);
+        logger.info(`[UpdateManager] Plateforme: ${this.platform}, Gestionnaire: ${this.manager || 'Aucun'}`);
     }
 
     checkCommand(cmd) {
@@ -27,113 +31,127 @@ class UpdateManager {
         });
     }
 
+    /**
+     * Point d'entrée principal pour récupérer les mises à jour
+     */
     async getUpdates() {
-        logger.info("Recherche de mises à jour...");
+        logger.info("[UpdateManager] Recherche de mises à jour complète...");
         
+        if (!this.manager) await this.detectManager();
+
         if (this.platform === 'win32') {
-            if (!this.sourceUpdated) {
-                logger.info("Mise à jour des sources Winget...");
-                try {
-                    await new Promise(r => exec('winget source update', r));
-                    this.sourceUpdated = true;
-                } catch(e) { logger.warn("Echec update sources: " + e); }
+            // Sur Windows, on lance les deux recherches en parallèle pour gagner du temps
+            // 1. Winget (Apps + Drivers)
+            // 2. Windows Update (OS + Security)
+            try {
+                const [wingetUpdates, sysUpdates] = await Promise.all([
+                    this.getWingetUpdatesWrapper(),
+                    this.getWindowsSystemUpdates()
+                ]);
+                
+                // Fusion des résultats
+                const allUpdates = [...sysUpdates, ...wingetUpdates];
+                logger.info(`[UpdateManager] Total trouvé: ${allUpdates.length} (Winget: ${wingetUpdates.length}, System: ${sysUpdates.length})`);
+                return allUpdates;
+            } catch (error) {
+                logger.error("[UpdateManager] Erreur lors de la recherche Windows: " + error);
+                return [];
             }
-            return this.getWingetUpdates();
         } else {
             return this.getLinuxUpdates();
         }
     }
 
+    // Wrapper pour gérer l'update des sources Winget une seule fois
+    async getWingetUpdatesWrapper() {
+        if (!this.sourceUpdated) {
+            logger.info("[UpdateManager] Actualisation sources Winget...");
+            try {
+                // Timeout 15s pour éviter le blocage si pas d'internet
+                await new Promise(r => exec('winget source update', { timeout: 15000 }, r));
+                this.sourceUpdated = true;
+            } catch(e) { logger.warn("[UpdateManager] Timeout source update"); }
+        }
+        return this.getWingetUpdates();
+    }
+
     getWingetUpdates() {
-        return new Promise((resolve, reject) => {
-            const cmd = 'winget upgrade --include-unknown --disable-interactivity --accept-source-agreements';
+        return new Promise((resolve) => {
+            // CHCP 65001 : Force l'encodage UTF-8 (Vital pour parser correctement sur tous les PC)
+            // --include-unknown : Vital pour voir les drivers (Intel, Nvidia, etc.) qui n'ont pas toujours de version propre
+            const cmd = 'chcp 65001 >NUL && winget upgrade --include-unknown --disable-interactivity --accept-source-agreements';
             
-            exec(cmd, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
+            exec(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
                 const updates = [];
-                const lines = stdout.split('\n');
-                
-                // Détection plus permissive de l'en-tête
-                let headerIndex = -1;
-                let idxId = -1;
-                let idxVersion = -1;
-                let idxAvailable = -1;
-                
-                // On cherche une ligne contenant au moins "Nom" (ou Name) et "Id"
-                for(let i=0; i<Math.min(lines.length, 10); i++) { // On cherche dans les 10 premières lignes
-                    const line = lines[i].toLowerCase();
-                    if ((line.includes('nom') || line.includes('name')) && (line.includes(' id'))) {
-                        headerIndex = i;
-                        const header = lines[i];
-                        
-                        // Utilisation de indexOf pour la robustesse
-                        idxId = header.toLowerCase().indexOf(' id'); 
-                        if (idxId !== -1) idxId += 1; // +1 pour passer l'espace
-                        
-                        // On cherche Version ou Current
-                        idxVersion = header.search(/(version|current)/i);
-                        
-                        // On cherche Disponible ou Available
-                        idxAvailable = header.search(/(disponible|available)/i);
-                        
-                        break;
-                    }
-                }
+                // Nettoyage des retours à la ligne Windows/Unix
+                const lines = stdout.replace(/\r\n/g, '\n').split('\n');
 
-                lines.forEach((line, index) => {
-                    if (index <= headerIndex) return; // Skip headers
-                    const l = line.trimEnd(); // On garde les espaces de début pour le parsing par colonne
-                    if (!l || l.startsWith('---')) return;
-                    
-                    let name, id, current, available;
+                // Regex Universelle : Cherche 3 colonnes ou plus séparées par 2 espaces ou plus.
+                const lineRegex = /^(.+?)\s{2,}([^\s]+)\s{2,}([^\s]+)\s{2,}([^\s]+)/;
 
-                    // Si on a détecté les colonnes, on découpe précisément
-                    if (idxId > 0 && idxVersion > 0) {
-                        // Nom: du début jusqu'à ID
-                        name = line.substring(0, idxId).trim();
-                        // ID: de ID jusqu'à Version
-                        id = line.substring(idxId, idxVersion).trim();
-                        
-                        // Si l'ID contient des "...", il est tronqué, on ne peut rien faire de fiable
-                        if (id.includes('…') || id.endsWith('...')) {
-                            // On tente de le récupérer via regex en dernier recours
-                            const match = l.match(/\s+([^\s]+)\s+\d+\./); // cherche un mot suivi d'une version
-                            if (match) id = match[1];
-                            else return;
+                lines.forEach((line) => {
+                    const l = line.trim();
+                    if (!l || l.startsWith('-')) return;
+
+                    const match = l.match(lineRegex);
+                    if (match) {
+                        const name = match[1].trim();
+                        const id = match[2].trim();
+                        const current = match[3].trim();
+                        const available = match[4].trim();
+
+                        if (id.toLowerCase() === 'id') return;
+
+                        if (name && id) {
+                            updates.push({
+                                name: name,
+                                id: id,
+                                currentVersion: current,
+                                newVersion: available,
+                                manager: 'winget'
+                            });
                         }
-
-                        // Version et Available
-                        if (idxAvailable > 0) {
-                            current = line.substring(idxVersion, idxAvailable).trim();
-                            available = line.substring(idxAvailable).trim().split(' ')[0];
-                        } else {
-                            const rest = line.substring(idxVersion).trim().split(/\s{2,}/);
-                            current = rest[0];
-                            available = rest[1] || "";
-                        }
-                    } else {
-                        // Fallback Regex (Ancienne méthode)
-                        // Nom (peut contenir espaces)  ID (sans espace)  Version  Available
-                        const match = l.match(/^(.+?)\s{2,}([^\s]+)\s{2,}([^\s]+)\s{2,}([^\s]+)/);
-                        if (match) {
-                            name = match[1].trim();
-                            id = match[2].trim();
-                            current = match[3].trim();
-                            available = match[4].trim();
-                        }
-                    }
-
-                    if (name && id && id.toLowerCase() !== 'id' && !name.startsWith('---')) {
-                        updates.push({
-                            name: name,
-                            id: id,
-                            currentVersion: current || "?",
-                            newVersion: available || "latest",
-                            manager: 'winget'
-                        });
                     }
                 });
                 
-                logger.info(`Winget: ${updates.length} mises à jour trouvées.`);
+                resolve(updates);
+            });
+        });
+    }
+
+    /**
+     * Récupère les mises à jour Windows Update via PowerShell et l'objet COM
+     */
+    getWindowsSystemUpdates() {
+        return new Promise((resolve) => {
+            logger.info("[UpdateManager] Recherche Windows Updates (COM)...");
+            // Script PowerShell optimisé pour interroger l'agent Windows Update natif
+            const psScript = `
+                try {
+                    $s = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher()
+                    $s.ServerSelection = 0 # Default
+                    $r = $s.Search("IsInstalled=0")
+                    $r.Updates | ForEach-Object { Write-Output ($_.Title + "||" + $_.Identity.UpdateID) }
+                } catch { exit 1 }
+            `;
+
+            exec(`powershell -NoProfile -Command "${psScript.replace(/\r?\n/g, '; ')}"`, { timeout: 60000 }, (err, stdout) => {
+                const updates = [];
+                if (!err && stdout) {
+                    const lines = stdout.toString().split('\n');
+                    lines.forEach(line => {
+                        const parts = line.trim().split('||');
+                        if (parts.length === 2) {
+                            updates.push({
+                                name: parts[0], // ex: "2024-01 Mise à jour cumulative..."
+                                id: parts[1],   // UUID de l'update
+                                currentVersion: 'System',
+                                newVersion: 'Update',
+                                manager: 'windows-update'
+                            });
+                        }
+                    });
+                }
                 resolve(updates);
             });
         });
@@ -141,11 +159,20 @@ class UpdateManager {
 
     getLinuxUpdates() {
         return new Promise((resolve) => {
-            if (this.manager === 'apt') {
-                exec('apt list --upgradable', (err, stdout) => {
-                    if (err) { resolve([]); return; }
-                    const updates = [];
-                    const lines = stdout.split('\n');
+            let cmd = '';
+            
+            // Adaptation de la commande selon la distribution
+            if (this.manager === 'apt') cmd = 'apt list --upgradable';
+            else if (this.manager === 'dnf') cmd = 'dnf check-update';
+            else if (this.manager === 'pacman') cmd = 'checkupdates';
+
+            if (!cmd) { resolve([]); return; }
+
+            exec(cmd, (err, stdout) => {
+                const updates = [];
+                const lines = stdout.split('\n');
+
+                if (this.manager === 'apt') {
                     lines.forEach(line => {
                         if (line.includes('/')) {
                             const parts = line.split('/');
@@ -158,43 +185,103 @@ class UpdateManager {
                             });
                         }
                     });
-                    resolve(updates);
-                });
-            } else {
-                resolve([]);
-            }
+                } 
+                else if (this.manager === 'dnf') {
+                    lines.forEach(line => {
+                        const l = line.trim();
+                        if(!l || l.startsWith('Last metadata')) return;
+                        const parts = l.split(/\s+/);
+                        if (parts.length >= 2) {
+                             updates.push({
+                                name: parts[0],
+                                id: parts[0],
+                                currentVersion: '?',
+                                newVersion: parts[1],
+                                manager: 'dnf'
+                            });
+                        }
+                    });
+                }
+                else if (this.manager === 'pacman') {
+                    lines.forEach(line => {
+                        const l = line.trim();
+                        const parts = l.split(/\s+/);
+                        if (parts.length >= 4 && parts[2] === '->') {
+                            updates.push({
+                                name: parts[0],
+                                id: parts[0],
+                                currentVersion: parts[1],
+                                newVersion: parts[3],
+                                manager: 'pacman'
+                            });
+                        }
+                    });
+                }
+                logger.info(`[UpdateManager] Linux (${this.manager}): ${updates.length} mises à jour.`);
+                resolve(updates);
+            });
         });
     }
 
     updatePackage(pkg, callback) {
         let cmd = '';
-        if (pkg.manager === 'winget') {
-            cmd = `winget upgrade --id "${pkg.id}" --accept-package-agreements --accept-source-agreements --silent --disable-interactivity --force --include-unknown`;
-        } else if (pkg.manager === 'apt') {
-            cmd = `apt-get install --only-upgrade -y ${pkg.id}`;
+        
+        switch (pkg.manager) {
+            case 'winget':
+                cmd = `winget upgrade --id "${pkg.id}" --accept-package-agreements --accept-source-agreements --silent --disable-interactivity --force --include-unknown`;
+                break;
+            case 'windows-update':
+                // Utilise USOClient pour déclencher l'installation native Windows Update
+                // C'est plus sûr que d'essayer d'installer via PowerShell COM qui requiert des droits très élevés et complexes
+                cmd = `powershell -Command "usoclient StartInstall"`;
+                break;
+            case 'apt':
+                cmd = `apt-get install --only-upgrade -y ${pkg.id}`;
+                break;
+            case 'dnf':
+                cmd = `dnf upgrade -y ${pkg.id}`;
+                break;
+            case 'pacman':
+                cmd = `pacman -S --noconfirm ${pkg.id}`;
+                break;
         }
 
-        logger.info(`Lancement mise à jour: ${pkg.id} (Force Mode)`);
+        if (!cmd) {
+            callback({ status: 'error', message: 'Gestionnaire non supporté' });
+            return;
+        }
+
+        logger.info(`[UpdateManager] Exécution (${pkg.manager}): ${cmd}`);
         
+        // Cas spécial Windows Update (Asynchrone système)
+        if (pkg.manager === 'windows-update') {
+            exec(cmd, (err) => {
+                if (!err) {
+                    callback({ status: 'finished', message: 'Installation système lancée (Vérifiez Windows Update)' });
+                } else {
+                    callback({ status: 'error', message: 'Echec lancement Windows Update' });
+                }
+            });
+            return;
+        }
+
         const child = exec(cmd);
         
         child.stdout.on('data', (data) => {
             const msg = data.toString().replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
-            if (msg) callback({ status: 'running', message: msg.substring(0, 50) + "..." });
+            if (msg.length > 0) callback({ status: 'running', message: msg.substring(0, 60) + "..." });
         });
 
         child.stderr.on('data', (data) => {
              const msg = data.toString().trim();
-             if (msg) callback({ status: 'running', message: "Traitement..." });
+             if (msg.length > 0) callback({ status: 'running', message: "Installation..." });
         });
 
         child.on('close', (code) => {
             if (code === 0) {
-                logger.info(`Mise à jour réussie: ${pkg.id}`);
-                callback({ status: 'finished', message: 'OK' });
+                callback({ status: 'finished', message: 'Mise à jour terminée' });
             } else {
-                logger.error(`Echec mise à jour ${pkg.id}. Code: ${code}`);
-                if (code === 2316632084 || code === -1978335212) {
+                if (pkg.manager === 'winget' && (code === 2316632084 || code === -1978335212)) {
                     callback({ status: 'error', message: `Erreur Hash (Réessayez)` });
                 } else {
                     callback({ status: 'error', message: `Erreur (Code ${code})` });

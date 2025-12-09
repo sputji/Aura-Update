@@ -1,60 +1,57 @@
 # Aura-Update
 
-**Universal, simple, and powerful update manager.**
+**Gestionnaire de mises à jour Universel, Portable et Intelligent.**
 
-Aura-Update is a lightweight utility designed to keep your applications automatically up to date on Windows and Linux. It simplifies package management by detecting and installing available updates with a single click.
+Aura-Update est un utilitaire léger et puissant conçu pour maintenir automatiquement votre ordinateur à jour, qu'il soit sous Windows ou Linux. Il simplifie la gestion des paquets en centralisant les mises à jour d'applications, de pilotes et du système d'exploitation en une seule interface moderne.
 
-🌐 **Official Website:** [https://www.auraneo.fr/aura-update/](https://www.auraneo.fr/aura-update/)
+🌐 **Site Officiel :** [https://www.auraneo.fr/aura-update/](https://www.auraneo.fr/aura-update/)
 
-## 🚀 Features
+## 🚀 Fonctionnalités Clés
 
-- **Cross-Platform:** Works natively on Windows 10/11 and major Linux distributions (Debian, Ubuntu, Fedora, Arch...).
-- **Automatic Detection:** Automatically identifies your system's package manager (`winget`, `apt`, `dnf`, `pacman`...).
-- **Modern Interface:** A clean and intuitive graphical interface (Dark Theme).
-- **Administrator Mode:** Smart privilege management for installations requiring elevated rights.
-- **Batch Updates:** Update your entire system in one click.
-- **Lightweight & Fast:** Built with Electron and Node.js for optimal performance.
+- **⚡ 100% Portable :** Aucune installation requise. L'application est autonome et ne dépend d'aucun chemin de dossier spécifique.
+- **🔄 Multi-Sources (Windows) :** 
+  - **Winget :** Applications et Logiciels.
+  - **Pilotes :** Détection avancée des pilotes (Intel, Nvidia, AMD...) même sans version standard.
+  - **Windows Update :** Scan natif des mises à jour système (Sécurité, OS, Patchs cumulatifs).
+- **🐧 Multi-Distributions (Linux) :** Support natif de `apt` (Debian/Ubuntu), `dnf` (Fedora/RedHat) et `pacman` (Arch Linux).
+- **🛠️ Outils de Maintenance :** Menu intégré pour nettoyer les fichiers temporaires du système (`%TEMP%` / `/tmp`) et les logs de l'application.
+- **🎨 Interface Moderne :** UI sombre ("Dark Dimmed"), fluide et ergonomique.
+- **🛡️ Mode Administrateur :** Gestion intelligente de l'élévation de privilèges sans redémarrage forcé de la machine.
 
-<<<<<<< HEAD
-## 🛠️ Installation
+## 🛠️ Utilisation
 
-Download the latest version from our official website:
-[https://www.auraneo.fr/aura-update/](https://www.auraneo.fr/aura-update/)
+Téléchargez la dernière version (**v0.3.2**) sur notre [site officiel](https://www.auraneo.fr/aura-update/).
 
-### Requirements
-- **Windows:** Windows 10 (1809+) or Windows 11. (Winget is usually pre-installed).
-- **Linux:** A recent distribution with `apt`, `dnf`, or `pacman`.
+### Windows
+Exécutez simplement le fichier `Aura-Update.exe`. Aucune installation n'est requise.
 
-## 🏗️ Build
+### Linux
+1.  Téléchargez l'archive `Aura-Update.tar.gz`.
+2.  Ouvrez un terminal et extrayez l'archive :
+    
+    ```bash
+    tar -xvf Aura-Update.tar.gz
+    ```
+3.  Rendez le fichier `aura-update` exécutable :
+    
+    ```bash
+    chmod +x aura-update
+    ```
+4.  Lancez l'application :
+    
+    ```bash
+    ./aura-update
+    ```
 
-If you want to build the project from source:
+## ⚖️ Licence et Propriété
 
-```bash
-# Install dependencies
-npm install
+Ce logiciel est la propriété exclusive de la société **Aura Néo**.
 
-# Build for Windows (.exe)
-npm run dist
+- **Gratuit :** Vous pouvez utiliser ce logiciel gratuitement.
+- **Propriétaire :** Le code source est fermé. Il est strictement interdit de le copier, modifier, décompiler ou distribuer sans autorisation.
+- **Distribution :** Le logiciel doit être téléchargé uniquement depuis le site officiel.
 
-# Build for Linux (.AppImage, .deb)
-npm run dist:linux
-```
-
-Executables will be generated in the `dist/` folder.
-
-## ⚖️ License and Ownership
-
-This software is the exclusive property of the company **Aura Néo**.
-
-- **Free:** You may use this software for free.
-- **Proprietary:** The source code is closed. It is strictly prohibited to copy, modify, decompile, or pirate it.
-- **Distribution:** The software must only be downloaded from the official website.
-
-This software is governed by French law. For more details, please refer to the included `LICENSE_EN.txt` file.
+Ce logiciel est régi par le droit français.
 
 ---
-© 2025 Aura Néo. All rights reserved.
-=======
-## Licence
-[Creative Commons License](LICENSE_EN.txt)
->>>>>>> ae47eb44871e3dce66d7748e19817c264e7470f4
+© 2025 Aura Néo. Tous droits réservés.

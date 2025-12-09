@@ -23,13 +23,19 @@ let isAdmin = false;
 
 // Initialisation
 window.onload = async () => {
+    // 1. Récupération et affichage de la version
+    try {
+        const version = await window.api.getAppVersion();
+        document.getElementById('headerSub').textContent = `v${version}`;
+    } catch (e) {
+        console.error("Erreur version:", e);
+    }
+
     // Charger la langue sauvegardée ou par défaut
     translations = await window.api.getTranslations();
-    // Détecter la langue actuelle (en regardant le texte d'un bouton par exemple ou via l'objet retourné si on modifiait l'API)
-    // Ici on suppose FR par défaut, on mettra à jour l'UI après.
     
-    // Pour simplifier, on demande la langue active à l'API ou on la déduit.
-    // Ajoutons une propriété dans translations pour savoir quelle langue c'est, ou stockons-le.
+    // Détection basique de la langue courante via une clé spécifique
+    // (Une méthode plus propre serait que getTranslations retourne aussi la langue)
     if (translations.btn_refresh === "🔄 Check for Updates") currentLang = 'en';
     
     applyTranslations();
@@ -45,22 +51,34 @@ langToggle.onclick = async () => {
     applyTranslations();
     // Rafraichir les textes dynamiques (Admin, Status)
     checkAdmin();
-    // Si une recherche était faite, on ne peut pas traduire les noms des paquets, mais le reste oui.
+    // Rafraichir la liste si elle est affichée pour traduire les boutons
+    if (listEl.childElementCount > 0) {
+        // On relance juste l'affichage (sans rescanner le réseau)
+        // Mais comme on ne stocke pas les updates en global ici (dans cette version simplifiée), 
+        // on fait un refreshUpdates() complet ou on manipule le DOM.
+        // Option simple : changer le texte des boutons existants
+        document.querySelectorAll('.item button').forEach(btn => {
+            btn.textContent = translations.btn_update;
+        });
+    }
 };
 
 function applyTranslations() {
     langToggle.textContent = currentLang === 'fr' ? '🇫🇷' : '🇺🇸';
-    
+    document.documentElement.lang = currentLang;
+
     document.getElementById('appTitle').textContent = translations.app_title;
     document.getElementById('headerTitle').textContent = translations.app_title;
     
     refreshBtn.textContent = translations.btn_refresh;
-    updateAllBtn.textContent = translations.btn_update_all;
+    updateAllBtn.querySelector('span').textContent = translations.btn_update_all;
     elevateBtn.textContent = translations.btn_elevate;
     
     document.getElementById('warnTitle').textContent = translations.admin_warning_title;
     document.getElementById('warnDesc').textContent = translations.admin_warning_desc;
     
+    document.getElementById('adminText').textContent = isAdmin ? translations.admin_active : translations.admin_inactive;
+
     // Status (si pas de recherche active)
     if (statusIcon.textContent === '👋') {
         statusTitle.textContent = translations.status_welcome;

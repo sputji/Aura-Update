@@ -4,10 +4,9 @@ const { app } = require('electron');
 
 class LocManager {
     constructor() {
-        // En prod: resources/locales, en dev: projet/locales
-        const basePath = app.isPackaged 
-            ? path.join(process.resourcesPath, 'locales')
-            : path.resolve(__dirname, '..', '..', 'locales');
+        // CORRECTION : En production, les fichiers sont dans l'archive ASAR (app.getAppPath()), 
+        // et non dans resources/locales (process.resourcesPath).
+        const basePath = path.join(app.getAppPath(), 'locales');
             
         this.localesPath = basePath;
         this.configPath = path.join(app.getPath('userData'), 'config.json');
@@ -37,10 +36,15 @@ class LocManager {
     loadTranslations(lang) {
         try {
             const file = path.join(this.localesPath, `${lang}.json`);
+            // fs.existsSync fonctionne transparente avec les chemins ASAR dans Electron
             if (fs.existsSync(file)) {
                 this.translations = JSON.parse(fs.readFileSync(file, 'utf8'));
                 this.currentLang = lang;
                 this.saveConfig();
+            } else {
+                console.warn(`Fichier de langue introuvable: ${file}`);
+                // Fallback
+                if (lang !== 'en') this.loadTranslations('en');
             }
         } catch (e) {
             console.error(`Erreur chargement langue ${lang}:`, e);

@@ -1,30 +1,51 @@
 :root {
-  --bg: #0b0f13;
-  --panel: #161b22;
-  --cyan: #58a6ff;
-  --sky: #1f6feb;
-  --muted: #8b949e;
-  --border: #30363d;
+  /* --- Base Sombre (Dark Theme) --- */
+  --bg: #0b0f13;       /* Fond principal */
+  --panel: #161b22;    /* En-têtes et panneaux */
+  --card-bg: #0d1117;  /* Fond des cartes */
+  --border: #30363d;   /* Bordures subtiles */
+
+  /* --- Palette AURA (Nouveau) --- */
+  /* Le dégradé signature : Bleu profond vers Cyan lumineux */
+  --aura-gradient: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+  /* Une version plus claire pour les survols */
+  --aura-gradient-hover: linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%);
+  /* La couleur d'accentuation principale (Cyan) pour le texte */
+  --accent: #06b6d4;
+  /* L'effet de lueur */
+  --glow-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+
+  /* --- Textes & États --- */
   --text: #c9d1d9;
   --white: #f0f6fc;
-  --warning: #d29922; /* Jaune/Orange GitHub */
-  --success: #238636; /* Vert GitHub */
-  --error: #da3633;
-  --card-bg: #0d1117;
+  --muted: #8b949e;
+
+  --warning: #d29922;
+  --error: #f85149;
+  --success-text: #3fb950; /* Vert conservé uniquement pour le texte "Succès" */
 }
 
-* { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"; }
+* { box-sizing: border-box; outline: none; }
 
 body {
   margin: 0;
   background-color: var(--bg);
   color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* Sélection de texte aux couleurs de la marque */
+  selection-background-color: rgba(37, 99, 235, 0.3);
 }
 
-/* Header */
+/* --- Scrollbar Personnalisée (Webkit) --- */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* --- Header --- */
 header.brand {
   display: flex;
   align-items: center;
@@ -32,274 +53,190 @@ header.brand {
   padding: 16px 32px;
   background-color: var(--panel);
   border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
 }
 
-.brand-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+.brand-left { display: flex; align-items: center; gap: 16px; }
 
+/* Logo avec effet Aura */
 .brand .logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%; /* Icone ronde comme les profils GitHub */
-  background-color: var(--bg);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, #1f2937 0%, var(--bg) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3); /* Bordure subtilement cyan */
+  box-shadow: var(--glow-shadow); /* Lueur autour du logo */
+  display: flex; align-items: center; justify-content: center;
 }
 
-.brand .logoimg {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-}
+.brand .logoimg { width: 32px; height: 32px; object-fit: contain; }
 
 .brand h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0; font-size: 20px; font-weight: 700;
   color: var(--white);
+  letter-spacing: -0.5px;
 }
 
-.brand .sub {
-  margin: 0;
-  color: var(--muted);
-  font-size: 14px;
-}
+.brand .sub { margin: 0; color: var(--accent); font-size: 13px; font-weight: 500; opacity: 0.8; }
 
-/* Actions */
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+/* --- Boutons & Actions --- */
+.actions { display: flex; align-items: center; gap: 12px; }
 
 .actions button {
-  margin: 0;
-  padding: 6px 16px;
+  padding: 8px 16px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background-color: var(--panel);
+  background-color: var(--card-bg);
   color: var(--text);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: 0.2s cubic-bezier(0.3, 0, 0.5, 1);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-size: 14px; font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex; align-items: center; gap: 8px;
 }
 
-.actions button:hover {
+.actions button:hover:not(:disabled) {
   background-color: var(--border);
-  border-color: var(--muted);
+  color: var(--white);
+  transform: translateY(-1px);
 }
 
+/* Le Bouton Principal "Aura" */
 .actions button.primary {
-  background-color: var(--success);
+  background: var(--aura-gradient);
+  border: 1px solid transparent;
   color: #fff;
-  border: 1px solid rgba(240, 246, 252, 0.1);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(6, 182, 212, 0.25); /* Ombre Cyan */
 }
 
-.actions button.primary:hover {
-  background-color: #2ea043;
-  border-color: rgba(240, 246, 252, 0.1);
+.actions button.primary:hover:not(:disabled) {
+  background: var(--aura-gradient-hover);
+  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4);
+  border-color: rgba(255,255,255,0.2);
 }
 
-.actions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  filter: grayscale(0.5);
-}
+.actions button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.8); }
 
-.actions button.admin {
-  color: var(--warning);
-  border-color: var(--warning);
-  background: transparent;
-}
+/* Bouton Admin */
+.actions button.admin { color: var(--warning); border-color: rgba(210, 153, 34, 0.3); background: transparent; }
+.actions button.admin.active { background-color: rgba(210, 153, 34, 0.1); border-color: var(--warning); }
+.actions button.admin:hover { background-color: rgba(210, 153, 34, 0.15); }
 
-.actions button.admin.active {
-  background-color: rgba(210, 153, 34, 0.15);
-}
-
-.actions button.admin:hover {
-  background-color: rgba(210, 153, 34, 0.2);
-}
-
-
-/* Main Content */
+/* --- Contenu Principal --- */
 main {
-  flex: 1;
-  padding: 32px;
-  max-width: 1000px;
-  margin: 0 auto;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  flex: 1; padding: 32px;
+  max-width: 900px; margin: 0 auto; width: 100%;
+  display: flex; flex-direction: column; gap: 24px;
 }
 
-/* Cards */
+/* Cartes */
 .card {
   background-color: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 24px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+/* Carte Warning */
 .card.warning {
-  border-left: 4px solid var(--warning);
-  background-color: rgba(210, 153, 34, 0.05); /* Very subtle warning bg */
+  border: 1px solid rgba(210, 153, 34, 0.4);
+  background: linear-gradient(90deg, rgba(210, 153, 34, 0.05) 0%, transparent 100%);
 }
+.card.warning strong { color: var(--warning); display: block; margin-bottom: 4px;}
 
-.card.warning strong {
-  color: var(--warning);
-}
-
+/* Status Box */
 #status {
-  font-size: 16px;
-  color: var(--white);
-  text-align: center;
-  padding: 40px;
-  border-style: dashed;
-  border-color: var(--border);
+  text-align: center; padding: 48px 24px;
+  border: 2px dashed var(--border);
   background: transparent;
+  border-radius: 12px;
+  transition: border-color 0.3s;
 }
+#status:hover { border-color: var(--muted); }
 
-/* List Items */
-#list {
-  padding: 0;
-  background: transparent;
-  border: none;
-}
+#statusIcon { font-size: 56px; margin-bottom: 16px; display: block; }
+#statusTitle { font-size: 18px; font-weight: 600; color: var(--white); margin-bottom: 8px; }
+
+/* Liste des items */
+#list { display: flex; flex-direction: column; gap: 12px; }
 
 #list .item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-bottom: 12px;
+  border-radius: 8px;
   background-color: var(--card-bg);
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 #list .item:hover {
-  border-color: var(--muted);
+  border-color: var(--accent); /* Bordure devient cyan au survol */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transform: translateY(-2px);
 }
 
-.item .meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.item .meta { display: flex; flex-direction: column; gap: 4px; }
+/* Le nom du logiciel en dégradé ou blanc brillant */
+.item .meta b { font-size: 16px; color: var(--white); font-weight: 600; }
+.item .meta .small { color: var(--muted); font-size: 13px; font-family: monospace; }
 
-.item .meta b {
-  font-size: 16px;
-  color: var(--cyan);
-}
-
-.item .meta .small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
+/* Bouton individuel 'Update' */
 .item button {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid rgba(240, 246, 252, 0.1);
-  background-color: var(--sky);
-  color: #fff;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-size: 13px;
-}
-
-.item button:hover {
-  background-color: #388bfd;
-}
-
-.item button:disabled {
-  background-color: var(--border);
-  color: var(--muted);
-  cursor: wait;
-}
-
-/* Progress Bar */
-#progress {
   border: 1px solid var(--border);
+  background-color: var(--panel);
+  color: var(--accent); /* Texte cyan */
+  font-weight: 600; font-size: 13px;
+  cursor: pointer;
 }
+.item button:hover {
+  background-color: var(--accent);
+  color: #000; /* Contraste sur fond cyan */
+  border-color: var(--accent);
+}
+
+/* --- Barre de Progression --- */
+#progress { border: 1px solid var(--border); }
+#progressLabel { color: var(--white); }
 
 .barwrap {
-  margin-top: 16px;
+  margin-top: 12px;
   background-color: var(--bg);
   height: 8px;
-  border-radius: 4px;
+  border-radius: 10px;
   overflow: hidden;
-  position: relative;
+  border: 1px solid var(--border);
 }
 
 .bar {
   height: 100%;
-  background-color: var(--success);
+  /* Le dégradé animé */
+  background: var(--aura-gradient);
   width: 0;
   transition: width 0.4s ease;
-  border-radius: 4px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.5); /* Effet néon interne */
 }
 
 /* Animation Indéterminée */
 .bar.indeterminate {
   width: 100% !important;
-  background-image: linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.15) 25%,
-    transparent 25%,
-    transparent 50%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.15) 75%,
-    transparent 75%,
-    transparent
-  );
-  background-size: 40px 40px;
-  animation: progress-stripes 1s linear infinite;
+  background: linear-gradient(90deg, #2563eb, #06b6d4, #2563eb);
+  background-size: 200% 100%;
+  animation: aura-pulse 1.5s infinite linear;
 }
 
-@keyframes progress-stripes {
-  from { background-position: 40px 0; }
-  to { background-position: 0 0; }
+@keyframes aura-pulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
-#progressLabel {
-  color: var(--white);
-  font-size: 14px;
-}
-
-#progressMessage {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-family: Consolas, "Courier New", monospace;
-}
-
-/* Small Button */
 .small-btn {
-  padding: 4px 10px;
-  font-size: 12px;
-  background-color: transparent;
-  color: var(--warning);
-  border: 1px solid var(--warning);
-  border-radius: 6px;
-  cursor: pointer;
-  margin-left: 12px;
-  font-weight: 600;
+  padding: 4px 12px; font-size: 12px;
+  background: transparent; color: var(--warning);
+  border: 1px solid var(--warning); border-radius: 20px;
+  cursor: pointer; margin-left: 12px; font-weight: 600;
 }
-
-.small-btn:hover {
-  background-color: rgba(210, 153, 34, 0.1);
-}
+.small-btn:hover { background: rgba(210, 153, 34, 0.1); }

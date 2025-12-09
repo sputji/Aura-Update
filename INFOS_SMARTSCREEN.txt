@@ -1,0 +1,53 @@
+-------------------------------
+----           US          ----
+-------------------------------
+
+WHY DOES WINDOWS DISPLAY "WINDOWS PROTECTED YOUR COMPUTER"?
+
+You're probably seeing a blue screen with the message "Microsoft Defender SmartScreen prevented an unrecognized application from starting."
+
+This is perfectly normal behavior for a recent standalone application.
+
+1. WHY?
+Windows displays this warning for all .exe files that are not digitally signed with an EV (Extended Validation) certificate.
+These certificates are very expensive (several hundred euros per year), which is prohibitive for free software like Aura-Update.
+
+2. HOW DO I RUN THE SOFTWARE?
+
+Rest assured, the software is safe. It was created by Aura Neo.
+
+To bypass this screen:
+
+1. Click on the "More info" link (underlined text).
+
+2. A new button will appear: click on "Run anyway."
+
+This operation is only necessary once. Windows will then remember that you have authorized this software.
+
+Aura Neo - https://www.auraneo.fr/aura-update/
+
+
+-------------------------------
+----           FR          ----
+-------------------------------
+
+POURQUOI WINDOWS AFFICHE "WINDOWS A PROTÉGÉ VOTRE ORDINATEUR" ?
+
+Vous voyez probablement un écran bleu avec le message "Microsoft Defender SmartScreen a empêché le démarrage d'une application non reconnue".
+
+C'est un comportement tout à fait normal pour un logiciel indépendant récent.
+
+1. POURQUOI ?
+   Windows affiche cet avertissement pour tous les fichiers .exe qui ne sont pas signés numériquement avec un certificat EV (Extended Validation).
+   Ces certificats coûtent très cher (plusieurs centaines d'euros par an), ce qui est prohibitif pour un logiciel gratuit comme Aura-Update.
+
+2. COMMENT LANCER LE LOGICIEL ?
+   Rassurez-vous, le logiciel est sûr. Il a été créé par Aura Néo.
+   
+   Pour passer cet écran :
+   1. Cliquez sur le lien "Informations complémentaires" (texte souligné).
+   2. Un nouveau bouton va apparaître : cliquez sur "Exécuter quand même".
+
+   Cette opération n'est nécessaire qu'une seule fois. Windows se souviendra ensuite que vous avez autorisé ce logiciel.
+
+Aura Néo - https://www.auraneo.fr/aura-update/

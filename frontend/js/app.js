@@ -1,0 +1,2080 @@
+/* ═══════════════════════════════════════════════════════════
+   Aura Update — Health Center  |  v2.0  |  Frontend JS
+   ═══════════════════════════════════════════════════════════ */
+'use strict';
+
+/* ─── Tauri API ────────────────────────────────────────────── */
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
+/* ─── State ────────────────────────────────────────────────── */
+const state = {
+    config: null,
+    i18n: {},
+    platform: 'windows',
+    updates: [],
+    cleanup: { items: [], total_bytes: 0 },
+    residues: { items: [], total_bytes: 0 },
+    startupItems: [],
+    processes: [],
+    health: null,
+    busy: false,
+    turboActive: false,
+};
+
+/* ─── DOM cache ────────────────────────────────────────────── */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+/* ─── Helpers ──────────────────────────────────────────────── */
+function t(key) { return state.i18n[key] || key; }
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function showToast(msg, type = '') {
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+function setBusy(v) {
+    state.busy = v;
+    $('#btnAutoPilot').disabled = v;
+}
+
+/* ─── Particle System Evolution ─────────────────────────────── */
+class ParticleSystem {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        if (!this.canvas) return;
+        this.ctx = this.canvas.getContext('2d');
+        this.particles = [];
+        this.scanning = false;
+        // Couleurs par défaut (Bleu Aura)
+        this.currentColor = { r: 88, g: 166, b: 255 };
+        this.targetColor  = { r: 88, g: 166, b: 255 };
+        this.running = true;
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this._initParticles(15);
+        this.update();
+    }
+
+    resize() {
+        if (!this.canvas) return;
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    }
+
+    _initParticles(count) {
+        const W = this.canvas.width || window.innerWidth;
+        const H = this.canvas.height || window.innerHeight;
+        for (let i = 0; i < count; i++) {
+            this.particles.push(this._createParticle(W, H));
+        }
+    }
+
+    _createParticle(W, H) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.3 + Math.random() * 0.5;
+        return {
+            x: Math.random() * W,
+            y: Math.random() * H,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 1.5 + Math.random() * 2,
+        };
+    }
+
+    setThemeColor(tabName) {
+        const colors = {
+            'updates':   { r: 88,  g: 166, b: 255 }, // Bleu
+            'cleanup':   { r: 210, g: 153, b: 34  }, // Jaune
+            'turbo':     { r: 188, g: 140, b: 255 }, // Violet
+            'startup':   { r: 255, g: 200, b: 60  }, // Gold
+            'processes': { r: 255, g: 100, b: 100 }, // Rouge
+            'default':   { r: 139, g: 148, b: 158 }, // Gris
+        };
+        this.targetColor = colors[tabName] || colors['default'];
+    }
+
+    setScanning(active) {
+        this.scanning = active;
+    }
+
+    update() {
+        if (!this.running || !this.ctx) return;
+        const ctx = this.ctx;
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Transition fluide de la couleur (Interpolation)
+        this.currentColor.r += (this.targetColor.r - this.currentColor.r) * 0.1;
+        this.currentColor.g += (this.targetColor.g - this.currentColor.g) * 0.1;
+        this.currentColor.b += (this.targetColor.b - this.currentColor.b) * 0.1;
+
+        const colorStr = `rgb(${Math.trunc(this.currentColor.r)}, ${Math.trunc(this.currentColor.g)}, ${Math.trunc(this.currentColor.b)})`;
+        const speedMultiplier = this.scanning ? 6 : 1;
+
+        // Maintain 15 particles
+        while (this.particles.length < 15) {
+            this.particles.push(this._createParticle(W, H));
+        }
+
+        this.particles.forEach(p => {
+            p.x += p.vx * speedMultiplier;
+            p.y += p.vy * speedMultiplier;
+            if (p.x < 0 || p.x > W) p.vx *= -1;
+            if (p.y < 0 || p.y > H) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = colorStr;
+            ctx.fill();
+            // Effet de halo léger en mode scanning
+            if (this.scanning) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = colorStr;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+        });
+
+        requestAnimationFrame(() => this.update());
+    }
+
+    destroy() {
+        this.running = false;
+    }
+}
+
+let auraParticles = null;
+
+/* ─── i18n ─────────────────────────────────────────────────── */
+async function loadTranslations(lang) {
+    try {
+        state.i18n = await invoke('get_translations', { lang });
+        applyTranslations();
+        // Re-render dynamic JS content that uses t()
+        if (state.health) renderHealthScore(state.health);
+    } catch (e) { console.warn('i18n load failed', e); }
+}
+
+function applyTranslations() {
+    $$('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (state.i18n[key]) el.textContent = state.i18n[key];
+    });
+    $$('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (state.i18n[key]) el.title = state.i18n[key];
+    });
+    $$('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (state.i18n[key]) el.placeholder = state.i18n[key];
+    });
+}
+
+/* ─── Theme ────────────────────────────────────────────────── */
+function setTheme(theme) {
+    let resolved = theme;
+    if (theme === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', resolved);
+    $('#themeIcon').textContent = resolved === 'dark' ? '🌙' : '☀️';
+    highlightOption('[data-theme-choice]', theme);
+}
+
+/* ─── Health Score ─────────────────────────────────────────── */
+const CIRCLE_CIRCUMFERENCE = 326.73;
+
+function renderHealthScore(hs) {
+    state.health = hs;
+    const pct = hs.total / 100;
+    const offset = CIRCLE_CIRCUMFERENCE * (1 - pct);
+    const arc = $('#healthArc');
+    arc.style.strokeDashoffset = offset;
+
+    // Color coding
+    if (hs.total >= 80) arc.style.stroke = 'var(--success)';
+    else if (hs.total >= 50) arc.style.stroke = 'var(--warning)';
+    else arc.style.stroke = 'var(--danger)';
+
+    $('#healthValue').textContent = hs.total + '%';
+    $('#hbUpdates').textContent = `${t('hb_updates')} ${hs.update_score}/40 (${hs.pending_updates})`;
+    $('#hbDisk').textContent = `${t('hb_disk')} ${hs.disk_score}/20 (${hs.disk_free_gb} GB)`;
+    $('#hbStartup').textContent = `${t('hb_startup')} ${hs.startup_score}/20 (${hs.startup_count})`;
+    $('#hbTemp').textContent = `${t('hb_temp')} ${hs.temp_score}/20 (${hs.temp_size_mb} MB)`;
+
+    // Colored progress bars
+    const barUpdates = $('#hbBarUpdates');
+    const barDisk = $('#hbBarDisk');
+    const barStartup = $('#hbBarStartup');
+    const barTemp = $('#hbBarTemp');
+    if (barUpdates) barUpdates.style.width = ((hs.update_score / 40) * 100) + '%';
+    if (barDisk) barDisk.style.width = ((hs.disk_score / 20) * 100) + '%';
+    if (barStartup) barStartup.style.width = ((hs.startup_score / 20) * 100) + '%';
+    if (barTemp) barTemp.style.width = ((hs.temp_score / 20) * 100) + '%';
+}
+
+async function refreshHealth() {
+    try {
+        const hs = await invoke('get_health_score');
+        renderHealthScore(hs);
+    } catch (e) { console.warn('Health score error', e); }
+}
+
+/// Apply vitals data to the dashboard UI.
+function displayVitals(v) {
+    const cpuEl = $('#vitalCpuTemp');
+    if (v.cpu_temp != null) {
+        cpuEl.textContent = v.cpu_temp.toFixed(0) + '°C';
+        cpuEl.className = 'vital-value ' + tempClass(v.cpu_temp);
+    } else {
+        cpuEl.textContent = t('vital_na');
+    }
+    const gpuEl = $('#vitalGpuTemp');
+    if (v.gpu_temp != null) {
+        gpuEl.textContent = v.gpu_temp.toFixed(0) + '°C';
+        gpuEl.className = 'vital-value ' + tempClass(v.gpu_temp);
+    } else {
+        gpuEl.textContent = t('vital_na');
+    }
+    if (v.battery_percent != null) {
+        $('#vitalBattPct').textContent = v.battery_percent + '%';
+        $('#vitalBattIcon').textContent = batteryIcon(v);
+    } else {
+        const battItem = $('#vitalBattery');
+        if (battItem) battItem.style.display = 'none';
+    }
+}
+
+async function refreshVitals() {
+    try {
+        const v = await invoke('get_system_vitals');
+        displayVitals(v);
+    } catch (e) { console.warn('Vitals error', e); }
+}
+
+function tempClass(temp) {
+    if (temp >= 85) return 'hot';
+    if (temp >= 65) return 'warm';
+    return 'cool';
+}
+
+function batteryIcon(v) {
+    if (v.battery_charging) return '⚡';
+    if (v.battery_percent <= 20) return '🪫';
+    return '🔋';
+}
+
+/* ─── Cool Boost ───────────────────────────────────────────── */
+let coolBoostInterval = null;
+let cooldownInterval = null;
+
+async function runCoolBoost() {
+    const container = $('#coolingContainer');
+    const btn = $('#btnCoolBoost');
+    const statusText = $('#coolStatusText');
+    const timer = $('#coolTimer');
+
+    btn.disabled = true;
+    container.classList.remove('cooldown', 'cracking');
+    container.classList.add('active');
+    statusText.textContent = t('cool_active');
+
+    try {
+        const result = await invoke('set_fan_boost', { active: true });
+
+        // Display detailed log if available
+        if (result.log && result.log.length > 0) {
+            let logEl = $('#coolLog');
+            if (!logEl) {
+                logEl = document.createElement('div');
+                logEl.id = 'coolLog';
+                logEl.className = 'cool-log';
+                container.appendChild(logEl);
+            }
+            logEl.textContent = result.log.join('\n');
+        }
+
+        if (!result.success) {
+            showToast(t(result.message) || t('cool_error'), 'error');
+            resetCoolingUI();
+            return;
+        }
+    } catch (e) {
+        showToast(t('cool_error'), 'error');
+        resetCoolingUI();
+        return;
+    }
+
+    // 30s countdown
+    let remaining = 30;
+    timer.textContent = remaining + 's';
+    coolBoostInterval = setInterval(() => {
+        remaining--;
+        timer.textContent = remaining + 's';
+        if (remaining <= 0) {
+            clearInterval(coolBoostInterval);
+            coolBoostInterval = null;
+            finishCoolBoost();
+        }
+    }, 1000);
+}
+
+async function finishCoolBoost() {
+    const container = $('#coolingContainer');
+    const statusText = $('#coolStatusText');
+    const timer = $('#coolTimer');
+    const btn = $('#btnCoolBoost');
+
+    // Ice-crack animation
+    container.classList.remove('active');
+    container.classList.add('cracking');
+
+    try {
+        await invoke('set_fan_boost', { active: false });
+    } catch (_) { /* best-effort restore */ }
+
+    // After crack animation, start 60s cooldown
+    setTimeout(() => {
+        container.classList.remove('cracking');
+        container.classList.add('cooldown');
+        statusText.textContent = t('cool_cooldown');
+
+        let cd = 60;
+        timer.textContent = cd + 's';
+        cooldownInterval = setInterval(() => {
+            cd--;
+            timer.textContent = cd + 's';
+            if (cd <= 0) {
+                clearInterval(cooldownInterval);
+                cooldownInterval = null;
+                resetCoolingUI();
+            }
+        }, 1000);
+    }, 600);
+}
+
+function resetCoolingUI() {
+    const container = $('#coolingContainer');
+    const btn = $('#btnCoolBoost');
+    const statusText = $('#coolStatusText');
+    const timer = $('#coolTimer');
+
+    container.classList.remove('active', 'cracking', 'cooldown');
+    btn.disabled = false;
+    statusText.textContent = t('cool_ready');
+    timer.textContent = '';
+
+    // Clear log
+    const logEl = $('#coolLog');
+    if (logEl) logEl.remove();
+}
+
+/* ─── Tab Navigation ───────────────────────────────────────── */
+function switchTab(name) {
+    $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    $$('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+    if (auraParticles) auraParticles.setThemeColor(name);
+    if (name === 'turbo') loadPredictiveGain();
+}
+
+/* ─── Updates Tab ──────────────────────────────────────────── */
+async function scanUpdates() {
+    if (state.busy) return;
+    setBusy(true);
+
+    // Show scanning state
+    const status = $('#statusSection');
+    status.classList.remove('hidden');
+    $('#updateList').classList.add('hidden');
+    $('#statusIcon').textContent = '🔄';
+    $('#statusTitle').textContent = t('scanning');
+    $('#statusDesc').textContent = t('scanning_desc');
+    $('#btnScan').disabled = true;
+
+    try {
+        state.updates = await invoke('check_updates');
+        renderUpdateList();
+    } catch (e) {
+        showToast(t('error_scan') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
+        $('#btnScan').disabled = false;
+    }
+}
+
+function renderUpdateList() {
+    const list = $('#updateList');
+    const status = $('#statusSection');
+    const btnAll = $('#btnUpdateAll');
+    const countEl = $('#updateCount');
+    const tabCount = $('#tabUpdatesCount');
+
+    if (state.updates.length === 0) {
+        list.classList.add('hidden');
+        btnAll.classList.add('hidden');
+        countEl.classList.add('hidden');
+        tabCount.classList.add('hidden');
+        status.classList.remove('hidden');
+        $('#statusIcon').textContent = '✅';
+        $('#statusTitle').textContent = t('up_to_date');
+        $('#statusDesc').textContent = t('up_to_date_desc');
+        return;
+    }
+
+    status.classList.add('hidden');
+    list.classList.remove('hidden');
+    btnAll.classList.remove('hidden');
+    countEl.classList.remove('hidden');
+    tabCount.classList.remove('hidden');
+    countEl.textContent = state.updates.length + ' ' + t('updates_available');
+    tabCount.textContent = state.updates.length;
+
+    list.innerHTML = state.updates.map(pkg => {
+        const badgeClass = pkg.type === 'critical' ? 'badge-critical' : pkg.type === 'system' ? 'badge-system' : 'badge-app';
+        const icon = pkg.type === 'critical' ? '🔴' : pkg.type === 'system' ? '🟡' : '🔵';
+        return `
+        <div class="update-item" data-id="${escapeHtml(pkg.id)}">
+            <div class="update-icon">${icon}</div>
+            <div class="update-info">
+                <div class="update-name">${escapeHtml(pkg.name)}</div>
+                <div class="update-meta">
+                    <span>${escapeHtml(pkg.current_version)} → ${escapeHtml(pkg.new_version)}</span>
+                    <span class="update-badge ${badgeClass}">${escapeHtml(pkg.manager)}</span>
+                </div>
+            </div>
+            <div class="update-actions">
+                <button class="btn btn-sm btn-primary btn-install" data-id="${escapeHtml(pkg.id)}">${t('btn_install')}</button>
+                <button class="btn btn-sm btn-secondary btn-ai-help" data-context="${escapeHtml(pkg.name + ' ' + pkg.new_version)}" title="AI Help">🤖</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+async function installUpdate(id) {
+    const pkg = state.updates.find(u => u.id === id);
+    if (!pkg) return;
+
+    const item = $(`.update-item[data-id="${CSS.escape(id)}"]`);
+    if (item) {
+        const btn = item.querySelector('.btn-install');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    }
+
+    try {
+        await invoke('install_update', { pkg });
+        if (item) { item.classList.add('installed'); }
+        state.updates = state.updates.filter(u => u.id !== id);
+        showToast(pkg.name + ' ' + t('installed'), 'success');
+        // Update tab count
+        const tabCount = $('#tabUpdatesCount');
+        tabCount.textContent = state.updates.length;
+        if (state.updates.length === 0) tabCount.classList.add('hidden');
+    } catch (e) {
+        showToast(t('error_install') + ': ' + e, 'error');
+        if (item) {
+            const btn = item.querySelector('.btn-install');
+            if (btn) { btn.disabled = false; btn.textContent = t('btn_install'); }
+        }
+    }
+}
+
+async function installAllUpdates() {
+    if (state.busy) return;
+    setBusy(true);
+    showProgress(t('installing_all'), state.updates.length);
+
+    let installed = 0;
+    for (const pkg of [...state.updates]) {
+        updateProgress(pkg.name, installed, state.updates.length + installed);
+        try {
+            await invoke('install_update', { pkg });
+            installed++;
+            const item = $(`.update-item[data-id="${CSS.escape(pkg.id)}"]`);
+            if (item) item.classList.add('installed');
+        } catch (e) { console.warn('Failed:', pkg.name, e); }
+    }
+
+    hideProgress();
+    state.updates = [];
+    renderUpdateList();
+    showToast(installed + ' ' + t('updates_installed'), 'success');
+    refreshHealth();
+    setBusy(false);
+}
+
+/* ─── Progress helpers ─────────────────────────────────────── */
+function showProgress(label, total) {
+    const s = $('#progressSection');
+    s.classList.remove('hidden');
+    $('#progressLabel').textContent = label;
+    $('#progressCount').textContent = total ? `0/${total}` : '';
+    const bar = $('#progressBar');
+    bar.classList.remove('indeterminate');
+    bar.style.width = '0%';
+    $('#progressMessage').textContent = '';
+}
+
+function updateProgress(message, current, total) {
+    if (total) {
+        $('#progressCount').textContent = `${current}/${total}`;
+        $('#progressBar').style.width = Math.round((current / total) * 100) + '%';
+    }
+    $('#progressMessage').textContent = message;
+}
+
+function hideProgress() {
+    $('#progressSection').classList.add('hidden');
+}
+
+/* ─── Cleanup Tab ──────────────────────────────────────────── */
+async function scanCleanup() {
+    if (state.busy) return;
+    setBusy(true);
+    $('#btnScanClean').disabled = true;
+    if (auraParticles) auraParticles.setScanning(true);
+
+    try {
+        state.cleanup = await invoke('scan_cleanup');
+        renderCleanupList();
+    } catch (e) {
+        showToast(t('error_scan') + ': ' + e, 'error');
+    } finally {
+        if (auraParticles) auraParticles.setScanning(false);
+        setBusy(false);
+        $('#btnScanClean').disabled = false;
+    }
+}
+
+function renderCleanupList() {
+    const list = $('#cleanupList');
+    const status = $('#cleanupStatus');
+    const btnClean = $('#btnRunClean');
+
+    if (state.cleanup.items.length === 0) {
+        list.innerHTML = '';
+        btnClean.classList.add('hidden');
+        status.classList.remove('hidden');
+        return;
+    }
+
+    status.classList.add('hidden');
+    btnClean.classList.remove('hidden');
+
+    let html = `<div class="cleanup-summary">
+        <span class="cleanup-summary-text">
+            ${state.cleanup.items.length} ${t('items_found')} — ${formatBytes(state.cleanup.total_bytes)} ${t('recoverable')}
+        </span>
+    </div>`;
+
+    html += state.cleanup.items.map(item => `
+        <div class="cleanup-item">
+            <span class="cleanup-item-icon">${item.category === 'temp' ? '🗑️' : item.category === 'cache' ? '📦' : '📂'}</span>
+            <div class="cleanup-item-info">
+                <div class="cleanup-item-name">${escapeHtml(item.description)}</div>
+                <div class="cleanup-item-path">${escapeHtml(item.path)}</div>
+            </div>
+            <span class="cleanup-item-size">${formatBytes(item.size_bytes)}</span>
+        </div>`).join('');
+
+    list.innerHTML = html;
+}
+
+async function runCleanup() {
+    if (state.busy || state.cleanup.items.length === 0) return;
+    setBusy(true);
+
+    // Auto-snapshot before heavy cleanup
+    await safeSnapshot('Nettoyage — Aura Update');
+
+    try {
+        const paths = state.cleanup.items.map(i => i.path);
+        const freed = await invoke('run_cleanup', { paths });
+        showToast(formatBytes(freed) + ' ' + t('freed'), 'success');
+        state.cleanup = { items: [], total_bytes: 0 };
+        renderCleanupList();
+        refreshHealth();
+    } catch (e) {
+        showToast(t('error_clean') + ': ' + e, 'error');
+    } finally { setBusy(false); }
+}
+
+async function scanResidues() {
+    if (state.busy) return;
+    setBusy(true);
+    $('#btnScanResidues').disabled = true;
+
+    try {
+        state.residues = await invoke('scan_os_residues');
+        if (state.residues.items.length === 0) {
+            showToast(t('no_residues'), 'success');
+        } else {
+            const names = state.residues.items.map(i => i.description).join(', ');
+            if (confirm(t('confirm_clean_residues') + '\n\n' + names)) {
+                const residues = state.residues.items.map(i => i.description);
+                const msg = await invoke('clean_os_residues', { residues });
+                showToast(msg, 'success');
+                refreshHealth();
+            }
+        }
+    } catch (e) {
+        showToast(t('error_scan') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
+        $('#btnScanResidues').disabled = false;
+    }
+}
+
+/* ─── Startup Tab ──────────────────────────────────────────── */
+async function loadStartupItems() {
+    if (state.busy) return;
+    setBusy(true);
+    $('#btnLoadStartup').disabled = true;
+
+    try {
+        state.startupItems = await invoke('get_startup_items');
+        renderStartupList();
+    } catch (e) {
+        showToast(t('error_load') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
+        $('#btnLoadStartup').disabled = false;
+    }
+}
+
+function renderStartupList() {
+    const list = $('#startupList');
+    const status = $('#startupStatus');
+
+    if (state.startupItems.length === 0) {
+        list.innerHTML = '';
+        status.classList.remove('hidden');
+        return;
+    }
+
+    status.classList.add('hidden');
+    list.innerHTML = state.startupItems.map(item => `
+        <div class="startup-item" data-name="${escapeHtml(item.name)}">
+            <span class="startup-item-icon">${item.enabled ? '✅' : '⛔'}</span>
+            <div class="startup-item-info">
+                <div class="startup-item-name">${escapeHtml(item.name)}</div>
+                <div class="startup-item-source">${escapeHtml(item.source)} — ${escapeHtml(item.path)}</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" ${item.enabled ? 'checked' : ''} data-startup="${escapeHtml(item.name)}">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>`).join('');
+}
+
+async function toggleStartup(name, enabled) {
+    const item = state.startupItems.find(i => i.name === name);
+    const source = item ? item.source : 'registry';
+    try {
+        await invoke('toggle_startup_item', { name, enabled, source });
+        const item = state.startupItems.find(i => i.name === name);
+        if (item) item.enabled = enabled;
+        renderStartupList();
+        showToast(name + ' ' + (enabled ? t('enabled') : t('disabled')), 'success');
+    } catch (e) {
+        showToast(t('error_toggle') + ': ' + e, 'error');
+        // Revert visual
+        renderStartupList();
+    }
+}
+
+/* ─── Processes Tab ────────────────────────────────────────── */
+async function loadProcesses() {
+    if (state.busy) return;
+    setBusy(true);
+    $('#btnLoadProcs').disabled = true;
+
+    try {
+        state.processes = await invoke('get_heavy_processes');
+        renderProcessList();
+    } catch (e) {
+        showToast(t('error_load') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
+        $('#btnLoadProcs').disabled = false;
+    }
+}
+
+function renderProcessList() {
+    const list = $('#processList');
+    const status = $('#processStatus');
+
+    if (state.processes.length === 0) {
+        list.innerHTML = '';
+        status.classList.remove('hidden');
+        return;
+    }
+
+    status.classList.add('hidden');
+    list.innerHTML = state.processes.map(p => {
+        const cpuPct = Math.min(p.cpu_percent, 100);
+        const ramPct = Math.min((p.memory_mb / 2048) * 100, 100); // scale to 2GB
+        const cpuClass = cpuPct > 50 ? 'high' : '';
+        const ramClass = ramPct > 50 ? 'high' : '';
+        return `
+        <div class="process-item" data-pid="${p.pid}">
+            <span class="process-item-icon">⚙️</span>
+            <div class="process-item-info">
+                <div class="process-item-name">${escapeHtml(p.name)}</div>
+                <div class="process-item-stats">
+                    <span class="process-stat">
+                        CPU ${cpuPct.toFixed(1)}%
+                        <span class="process-bar"><span class="process-bar-fill cpu ${cpuClass}" style="width:${cpuPct}%"></span></span>
+                    </span>
+                    <span class="process-stat">
+                        RAM ${p.memory_mb} MB
+                        <span class="process-bar"><span class="process-bar-fill ram ${ramClass}" style="width:${ramPct}%"></span></span>
+                    </span>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-danger btn-kill" data-pid="${p.pid}" title="${t('btn_kill')}">✕</button>
+        </div>`;
+    }).join('');
+}
+
+async function killProcess(pid) {
+    if (!confirm(t('confirm_kill'))) return;
+    try {
+        await invoke('kill_process', { pid });
+        state.processes = state.processes.filter(p => p.pid !== pid);
+        renderProcessList();
+        showToast(t('process_killed'), 'success');
+    } catch (e) {
+        showToast(t('error_kill') + ': ' + e, 'error');
+    }
+}
+
+function sortProcesses(mode) {
+    if (state.processes.length === 0) return;
+    switch (mode) {
+        case 'cpu-desc': state.processes.sort((a, b) => b.cpu_percent - a.cpu_percent); break;
+        case 'cpu-asc':  state.processes.sort((a, b) => a.cpu_percent - b.cpu_percent); break;
+        case 'ram-desc': state.processes.sort((a, b) => b.memory_mb - a.memory_mb); break;
+        case 'ram-asc':  state.processes.sort((a, b) => a.memory_mb - b.memory_mb); break;
+    }
+    // Highlight active sort button
+    $$('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === mode));
+    renderProcessList();
+}
+
+/* ─── Turbo Tab ────────────────────────────────────────────── */
+async function toggleTurboMode() {
+    if (state.busy) return;
+    const btn = $('#btnTurboToggle');
+    const statusText = $('#turboStatusText');
+    const icon = $('.turbo-main-icon');
+
+    state.busy = true;
+    btn.disabled = true;
+
+    try {
+        const activate = !state.turboActive;
+        await invoke('toggle_game_mode', { activate });
+        if (activate) {
+            await invoke('disable_telemetry').catch(() => {});
+        }
+
+        state.turboActive = activate;
+
+        // Visual feedback with animation
+        if (activate) {
+            btn.classList.add('activating');
+            setTimeout(() => { btn.classList.remove('activating'); btn.classList.add('active'); }, 600);
+            btn.textContent = t('turbo_deactivate');
+            icon.classList.add('pulse-fast');
+            statusText.textContent = t('turbo_active');
+            statusText.setAttribute('data-i18n', 'turbo_active');
+            btn.setAttribute('data-i18n', 'turbo_deactivate');
+            showToast(t('turbo_active'), 'success');
+        } else {
+            btn.classList.remove('active');
+            btn.classList.add('deactivating');
+            setTimeout(() => btn.classList.remove('deactivating'), 500);
+            btn.textContent = t('turbo_activate');
+            icon.classList.remove('pulse-fast');
+            statusText.textContent = t('turbo_disabled');
+            statusText.setAttribute('data-i18n', 'turbo_disabled');
+            btn.setAttribute('data-i18n', 'turbo_activate');
+            showToast(t('turbo_disabled'), 'success');
+        }
+    } catch (e) {
+        showToast(t('error_turbo') + ' : ' + e, 'error');
+    } finally {
+        state.busy = false;
+        btn.disabled = false;
+    }
+}
+
+async function scanBrowserCaches() {
+    const btn = $('#btnScanBrowsers');
+    btn.disabled = true;
+    try {
+        const report = await invoke('scan_browser_caches');
+        const list = $('#browserCacheList');
+        if (report.items.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-secondary);font-size:.85rem">' + t('no_browser_cache') + '</p>';
+            return;
+        }
+        list.innerHTML = report.items.map((item, idx) => `
+            <div class="cleanup-item">
+                <label class="browser-cache-check">
+                    <input type="checkbox" checked data-browser-idx="${idx}" data-browser-path="${escapeHtml(item.path)}">
+                    <span class="cleanup-item-icon">🌐</span>
+                </label>
+                <div class="cleanup-item-info">
+                    <span class="cleanup-item-name">${escapeHtml(item.description)}</span>
+                    <span class="cleanup-item-size">${formatBytes(item.size_bytes)}</span>
+                </div>
+            </div>
+        `).join('');
+        list.innerHTML += `<p style="margin-top:8px;font-size:.85rem;color:var(--text-secondary)">${t('total')}: ${formatBytes(report.total_bytes)}</p>`;
+        list.innerHTML += `<button id="btnCleanBrowsers" class="btn btn-sm btn-accent" style="margin-top:10px">🧹 ${t('btn_clean_selected')}</button>`;
+        $('#btnCleanBrowsers').addEventListener('click', cleanSelectedBrowserCaches);
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function cleanSelectedBrowserCaches() {
+    const checkboxes = $$('#browserCacheList input[data-browser-path]:checked');
+    const paths = Array.from(checkboxes).map(cb => cb.dataset.browserPath);
+    if (paths.length === 0) {
+        showToast(t('no_selection'), 'error');
+        return;
+    }
+    try {
+        const freed = await invoke('run_cleanup', { paths });
+        showToast(formatBytes(freed) + ' ' + t('freed'), 'success');
+        // Re-scan to refresh
+        scanBrowserCaches();
+    } catch (e) {
+        showToast(t('error_clean') + ': ' + e, 'error');
+    }
+}
+
+async function runBloatwarePurge() {
+    const btn = $('#btnPurgeBloat');
+    const results = $('#bloatwareResults');
+    btn.disabled = true;
+    results.textContent = t('scanning');
+
+    try {
+        const bloatwares = await invoke('list_bloatwares');
+        const installed = bloatwares.filter(b => b.installed);
+        if (installed.length === 0) {
+            results.textContent = t('no_bloatware');
+            btn.disabled = false;
+            return;
+        }
+
+        // Categorize bloatwares
+        const categories = {
+            games: ['king.com', 'Disney', 'CandyCrush', 'Solitaire'],
+            thirdparty: ['SpotifyAB', 'BytedancePte', 'Clipchamp'],
+        };
+
+        function getBloatCategory(pkg) {
+            for (const [cat, patterns] of Object.entries(categories)) {
+                if (patterns.some(p => pkg.includes(p))) return cat;
+            }
+            return 'microsoft';
+        }
+
+        const grouped = { microsoft: [], games: [], thirdparty: [] };
+        for (const b of installed) {
+            const cat = getBloatCategory(b.package);
+            grouped[cat].push(b);
+        }
+
+        // Build modal content with categories
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.id = 'bloatwareOverlay';
+
+        let checklistHtml = '';
+        const catLabels = {
+            microsoft: t('bloat_cat_microsoft'),
+            games: t('bloat_cat_games'),
+            thirdparty: t('bloat_cat_thirdparty'),
+        };
+        for (const [cat, items] of Object.entries(grouped)) {
+            if (items.length === 0) continue;
+            checklistHtml += `<div class="bloat-category"><h4 class="bloat-category-title">${catLabels[cat] || cat}</h4>`;
+            checklistHtml += items.map(b => `
+                <label class="bloatware-check-item">
+                    <input type="checkbox" checked data-bloat-pkg="${escapeHtml(b.package)}">
+                    <span class="bloatware-check-label">${escapeHtml(b.label)}</span>
+                    <span class="bloatware-check-pkg">${escapeHtml(b.package)}</span>
+                </label>
+            `).join('');
+            checklistHtml += '</div>';
+        }
+
+        overlay.innerHTML = `
+            <div class="modal bloatware-modal">
+                <div class="modal-header">
+                    <h2>${t('bloatware_select_title')}</h2>
+                    <button class="btn-icon btn-close" id="btnCloseBloatModal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:12px">
+                        ${t('bloatware_select_desc')}
+                    </p>
+                    <div style="display:flex;gap:8px;margin-bottom:12px">
+                        <button class="btn btn-sm btn-secondary" id="btnBloatSelectAll">${t('btn_select_all')}</button>
+                        <button class="btn btn-sm btn-secondary" id="btnBloatDeselectAll">${t('btn_deselect_all')}</button>
+                    </div>
+                    <div class="bloatware-checklist">
+                        ${checklistHtml}
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                        <button class="btn btn-sm btn-neutral" id="btnBloatCancel">${t('btn_decline')}</button>
+                        <button class="btn btn-sm btn-danger" id="btnBloatConfirm">🗑️ ${t('btn_purge_selected')}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const closeModal = () => overlay.remove();
+        overlay.querySelector('#btnCloseBloatModal').addEventListener('click', closeModal);
+        overlay.querySelector('#btnBloatCancel').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+        overlay.querySelector('#btnBloatSelectAll').addEventListener('click', () => {
+            overlay.querySelectorAll('input[data-bloat-pkg]').forEach(cb => cb.checked = true);
+        });
+        overlay.querySelector('#btnBloatDeselectAll').addEventListener('click', () => {
+            overlay.querySelectorAll('input[data-bloat-pkg]').forEach(cb => cb.checked = false);
+        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+        overlay.querySelector('#btnBloatConfirm').addEventListener('click', async () => {
+            const selected = Array.from(overlay.querySelectorAll('input[data-bloat-pkg]:checked'))
+                .map(cb => cb.dataset.bloatPkg);
+            if (selected.length === 0) {
+                showToast(t('no_selection'), 'error');
+                return;
+            }
+            closeModal();
+            results.textContent = t('purging');
+            try {
+                const message = await invoke('purge_bloatwares', { selection: selected });
+                results.textContent = message;
+                showToast(message, 'success');
+            } catch (err) {
+                results.textContent = '';
+                showToast(t('error') + ': ' + err, 'error');
+            }
+        });
+    } catch (e) {
+        results.textContent = '';
+        showToast(t('error') + ': ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function loadPredictiveGain() {
+    try {
+        const gain = await invoke('get_predicted_cleanup_gain');
+        const el = $('#predictiveValue');
+        if (gain > 0) {
+            el.textContent = t('gain_estimated').replace('{0}', formatBytes(gain));
+        } else {
+            el.textContent = t('gain_no_data');
+        }
+    } catch (_) {
+        const el = $('#predictiveValue');
+        if (el) el.textContent = t('gain_no_data');
+    }
+}
+
+/* ─── Auto-Pilot ───────────────────────────────────────────── */
+async function runAutoPilot() {
+    if (state.busy) return;
+    setBusy(true);
+
+    // Particules en violet électrique pendant l'auto-pilote
+    if (auraParticles) {
+        auraParticles.setThemeColor('turbo');
+        auraParticles.setScanning(true);
+    }
+
+    // Play startup sound
+    playAutoPilotStart();
+
+    const statusEl = $('#autopilotStatus');
+    statusEl.classList.remove('hidden');
+    statusEl.textContent = t('autopilot_starting');
+
+    try {
+        // Auto-snapshot before operations
+        if (state.config && state.config.auto_snapshot) {
+            statusEl.textContent = t('snapshot_before_op');
+            try { await invoke('create_snapshot', { label: 'Auto-Pilot' }); } catch (_) { /* best-effort */ }
+        }
+
+        // 1. Run auto-pilot (updates + cleanup + residues)
+        statusEl.textContent = t('autopilot_step_updates');
+        const score = await invoke('run_autopilot');
+
+        // 2. Additional cleanup scan
+        statusEl.textContent = t('autopilot_step_cleanup');
+        try { await invoke('scan_cleanup'); } catch (_e) { /* non-blocking */ }
+
+        // NOTE: Bloatware purge removed from AutoPilot (v2) — manual only via Turbo tab
+
+        renderHealthScore(score);
+        statusEl.textContent = t('autopilot_done') + ' — ' + score.total + '%';
+        showToast(t('autopilot_done'), 'success');
+        playAutoPilotSuccess();
+        scanUpdates();
+    } catch (e) {
+        statusEl.textContent = t('autopilot_error');
+        showToast(t('error') + ': ' + e, 'error');
+    } finally {
+        if (auraParticles) auraParticles.setScanning(false);
+        setBusy(false);
+    }
+}
+
+function playAutoPilotStart() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [
+            { freq: 440.00, start: 0,    dur: 0.1  },  // A4
+            { freq: 523.25, start: 0.08, dur: 0.1  },  // C5
+            { freq: 659.25, start: 0.16, dur: 0.15 },  // E5
+        ];
+        const master = ctx.createGain();
+        master.gain.value = 0.06;
+        master.connect(ctx.destination);
+        for (const n of notes) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = n.freq;
+            gain.gain.setValueAtTime(0, ctx.currentTime + n.start);
+            gain.gain.linearRampToValueAtTime(1, ctx.currentTime + n.start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.start + n.dur);
+            osc.connect(gain);
+            gain.connect(master);
+            osc.start(ctx.currentTime + n.start);
+            osc.stop(ctx.currentTime + n.start + n.dur + 0.05);
+        }
+    } catch (_) { /* silent */ }
+}
+
+function playAutoPilotSuccess() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [
+            { freq: 659.25, start: 0,    dur: 0.12 },  // E5
+            { freq: 783.99, start: 0.10, dur: 0.12 },  // G5
+            { freq: 1046.5, start: 0.20, dur: 0.15 },  // C6
+            { freq: 1318.5, start: 0.32, dur: 0.25 },  // E6 (plus haute)
+            { freq: 1568.0, start: 0.50, dur: 0.35 },  // G6 (finale triomphale)
+        ];
+        const master = ctx.createGain();
+        master.gain.value = 0.08;
+        master.connect(ctx.destination);
+        for (const n of notes) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = n.freq;
+            gain.gain.setValueAtTime(0, ctx.currentTime + n.start);
+            gain.gain.linearRampToValueAtTime(1, ctx.currentTime + n.start + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.start + n.dur);
+            osc.connect(gain);
+            gain.connect(master);
+            osc.start(ctx.currentTime + n.start);
+            osc.stop(ctx.currentTime + n.start + n.dur + 0.05);
+        }
+    } catch (_) { /* Audio non supporté — silencieux */ }
+}
+
+/* ─── Settings Modal ───────────────────────────────────────── */
+function openSettings() {
+    $('#settingsOverlay').classList.remove('hidden');
+    syncSettingsUI();
+}
+
+function closeSettings() {
+    $('#settingsOverlay').classList.add('hidden');
+}
+
+function syncSettingsUI() {
+    if (!state.config) return;
+    highlightOption('[data-theme-choice]', state.config.theme);
+    highlightOption('[data-lang-choice]', state.config.language);
+    highlightOption('[data-sched]', state.config.scheduler_interval);
+    highlightOption('[data-startup-mode]', state.config.startup_mode || 'visible');
+
+    $('#snapshotToggle').checked = state.config.auto_snapshot;
+    $('#snapshotStatus').textContent = state.config.auto_snapshot ? t('enabled') : t('disabled');
+
+    $('#aiToggle').checked = state.config.ai_enabled;
+    $('#aiStatus').textContent = state.config.ai_enabled ? t('ai_enabled') : t('ai_disabled');
+    $('#aiConfig').classList.toggle('hidden', !state.config.ai_enabled);
+    $('#aiApiKey').value = state.config.ai_api_key || '';
+
+    // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
+    const tw = $('#telemetryWindows');
+    const to = $('#telemetryOffice');
+    const tv = $('#telemetryVscode');
+    if (tw) tw.checked = !state.config.telemetry_windows;
+    if (to) to.checked = !state.config.telemetry_office;
+    if (tv) tv.checked = !state.config.telemetry_vscode;
+
+    // Backup dir
+    syncBackupDirUI();
+
+    // Close to Tray
+    $('#closeToTrayToggle').checked = state.config.close_to_tray || false;
+    $('#closeToTrayStatus').textContent = state.config.close_to_tray ? t('enabled') : t('disabled');
+}
+
+function highlightOption(selector, value) {
+    $$(selector).forEach(btn => {
+        const val = btn.dataset.themeChoice || btn.dataset.langChoice || btn.dataset.sched || btn.dataset.startupMode;
+        btn.classList.toggle('active', val === value);
+    });
+}
+
+async function saveConfigKey(key, value) {
+    try {
+        await invoke('set_config_value', { key, value });
+        state.config[key] = value;
+    } catch (e) { console.warn('Config save failed', key, e); }
+}
+
+/* ─── AI ───────────────────────────────────────────────────── */
+async function openAIHelp(context, contextType) {
+    // Check availability
+    const available = await invoke('ai_is_available');
+    if (!available) {
+        if (!state.config.ai_consent_given) {
+            openConsent(context, contextType);
+        } else {
+            showToast(t('ai_not_configured'), 'error');
+        }
+        return;
+    }
+
+    // Show AI modal
+    $('#aiOverlay').classList.remove('hidden');
+    $('#aiLoading').classList.remove('hidden');
+    $('#aiResult').classList.add('hidden');
+    $('#aiError').classList.add('hidden');
+
+    try {
+        const request = { context, context_type: contextType };
+        const result = await invoke('ai_analyze', { request });
+        $('#aiResultContent').textContent = result;
+        $('#aiLoading').classList.add('hidden');
+        $('#aiResult').classList.remove('hidden');
+    } catch (e) {
+        $('#aiLoading').classList.add('hidden');
+        $('#aiError').classList.remove('hidden');
+    }
+}
+
+function openConsent(pendingContext, pendingType) {
+    $('#consentOverlay').classList.remove('hidden');
+    // Store pending request
+    state._pendingAI = { context: pendingContext, type: pendingType };
+}
+
+async function acceptConsent() {
+    $('#consentOverlay').classList.add('hidden');
+    await saveConfigKey('ai_consent_given', true);
+    state.config.ai_consent_given = true;
+
+    // If AI not enabled, enable it
+    if (!state.config.ai_enabled) {
+        await saveConfigKey('ai_enabled', true);
+        state.config.ai_enabled = true;
+    }
+
+    // Proceed with pending AI request
+    if (state._pendingAI) {
+        openAIHelp(state._pendingAI.context, state._pendingAI.type);
+        state._pendingAI = null;
+    }
+}
+
+async function saveAIConfig() {
+    const endpoint = 'https://ia.auraneo.fr';
+    const apiKey = $('#aiApiKey').value.trim();
+    const enabled = $('#aiToggle').checked;
+    const consent = state.config.ai_consent_given;
+
+    try {
+        await invoke('configure_ai', {
+            enabled,
+            endpoint,
+            apiKey,
+            consentGiven: consent,
+        });
+        state.config.ai_enabled = enabled;
+        state.config.ai_endpoint = endpoint;
+        state.config.ai_api_key = apiKey;
+        showToast(t('saved'), 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+/* ─── Remote Dashboard ─────────────────────────────────────── */
+function openRemoteModal() {
+    $('#remoteOverlay').classList.remove('hidden');
+    refreshRemoteStatus();
+}
+
+async function refreshRemoteStatus() {
+    try {
+        const status = await invoke('get_remote_status');
+        $('#remoteLoading').classList.add('hidden');
+        if (status.running) {
+            $('#remoteOff').classList.add('hidden');
+            $('#remoteOn').classList.remove('hidden');
+            $('#remoteURL').textContent = status.url;
+        } else {
+            $('#remoteOff').classList.remove('hidden');
+            $('#remoteOn').classList.add('hidden');
+        }
+    } catch (_) {}
+}
+
+async function startRemote() {
+    // Show loading animation
+    $('#remoteOff').classList.add('hidden');
+    $('#remoteLoading').classList.remove('hidden');
+    $('#remoteOn').classList.add('hidden');
+
+    try {
+        const info = await invoke('start_remote');
+        $('#remoteLoading').classList.add('hidden');
+        $('#remoteOn').classList.remove('hidden');
+        $('#remoteQR').innerHTML = info.qr_svg;
+        $('#remoteURL').textContent = info.url;
+        showToast(t('remote_started'), 'success');
+    } catch (e) {
+        $('#remoteLoading').classList.add('hidden');
+        $('#remoteOff').classList.remove('hidden');
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+async function stopRemote() {
+    try {
+        await invoke('stop_remote');
+        $('#remoteLoading').classList.add('hidden');
+        $('#remoteOff').classList.remove('hidden');
+        $('#remoteOn').classList.add('hidden');
+        $('#remoteQR').innerHTML = '';
+        showToast(t('remote_stopped'), 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+/* ─── Admin ────────────────────────────────────────────────── */
+async function checkAdmin() {
+    const admin = await invoke('is_admin');
+    if (!admin) {
+        $('#adminBanner').classList.remove('hidden');
+        // Grey out scheduler options when not admin
+        const schedOptions = $('#schedOptions');
+        const schedNotice = $('#schedAdminNotice');
+        if (schedOptions) {
+            schedOptions.querySelectorAll('[data-sched]').forEach(btn => {
+                if (btn.dataset.sched !== 'disabled') {
+                    btn.disabled = true;
+                    btn.classList.add('disabled');
+                }
+            });
+        }
+        if (schedNotice) schedNotice.classList.remove('hidden');
+    }
+}
+
+/* ─── Scheduler ────────────────────────────────────────────── */
+async function applySchedule(interval) {
+    const enabled = interval !== 'disabled';
+    try {
+        await invoke('set_schedule', { enabled, interval });
+        await saveConfigKey('scheduler_enabled', enabled);
+        await saveConfigKey('scheduler_interval', interval);
+        highlightOption('[data-sched]', interval);
+        showToast(t('saved'), 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+/* ─── Events from Rust ─────────────────────────────────────── */
+async function setupListeners() {
+    await listen('update-progress', (event) => {
+        const d = event.payload;
+        if (d.status === 'running') {
+            updateProgress(d.message, 0, 0);
+        }
+        if (d.status === 'done') {
+            const item = $(`.update-item[data-id="${CSS.escape(d.id)}"]`);
+            if (item) item.classList.add('installed');
+        }
+    });
+
+    await listen('autopilot-progress', (event) => {
+        const d = event.payload;
+        const statusEl = $('#autopilotStatus');
+        statusEl.classList.remove('hidden');
+        statusEl.textContent = d.message || d.step || '';
+    });
+
+    await listen('remote-action', (event) => {
+        const action = event.payload;
+        if (action === 'scan') scanUpdates();
+        else if (action === 'clean') runCleanup();
+        else if (action === 'autopilot') runAutoPilot();
+        else if (action === 'turbo') toggleTurboMode();
+        else if (action === 'coolboost') runCoolBoost();
+    });
+}
+
+/* ─── Event Bindings ───────────────────────────────────────── */
+function bindEvents() {
+    // Tab navigation
+    $$('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // Header buttons
+    $('#btnRemote').addEventListener('click', openRemoteModal);
+    $('#btnSettings').addEventListener('click', openSettings);
+    $('#btnTheme').addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        setTheme(next);
+        saveConfigKey('theme', next);
+    });
+    $('#btnLang').addEventListener('click', async () => {
+        const next = state.config.language === 'fr' ? 'en' : 'fr';
+        await saveConfigKey('language', next);
+        state.config.language = next;
+        $('#langIcon').textContent = next === 'fr' ? '🇫🇷' : '🇺🇸';
+        await loadTranslations(next);
+    });
+
+    // Admin
+    $('#btnElevate').addEventListener('click', async () => {
+        try {
+            // 1. On affiche l'écran d'attente IMMÉDIATEMENT avant de lancer la demande
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.backgroundColor = '#000';
+            overlay.style.color = '#fff';
+            overlay.style.display = 'flex';
+            overlay.style.flexDirection = 'column';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '99999';
+            overlay.innerHTML = `
+                <div style="font-size: 3rem; margin-bottom: 20px;">🛡️</div>
+                <div style="font-size: 1.3rem; font-weight: bold;">Redémarrage en mode Administrateur...</div>
+                <div style="margin-top: 15px; font-size: 0.9rem; color: #aaa;">Veuillez cliquer sur "Oui" dans la fenêtre Windows (UAC).</div>
+            `;
+            document.body.appendChild(overlay);
+
+            // 2. On lance l'élévation côté Rust.
+            // NE PAS ajouter de process.exit() ici. Le Rust fermera l'appli tout seul après 2 secondes.
+            await invoke('elevate');
+        } catch (e) {
+            // 3. Si l'utilisateur clique sur "Non" à la demande Windows, on recharge l'application
+            window.location.reload();
+        }
+    });
+
+    // Auto-Pilot
+    $('#btnAutoPilot').addEventListener('click', runAutoPilot);
+
+    // Cool Boost
+    $('#btnCoolBoost').addEventListener('click', runCoolBoost);
+
+    // Updates tab
+    $('#btnScan').addEventListener('click', scanUpdates);
+    $('#btnUpdateAll').addEventListener('click', installAllUpdates);
+    $('#updateList').addEventListener('click', (e) => {
+        const installBtn = e.target.closest('.btn-install');
+        if (installBtn) return installUpdate(installBtn.dataset.id);
+        const aiBtn = e.target.closest('.btn-ai-help');
+        if (aiBtn) return openAIHelp(aiBtn.dataset.context, 'update_error');
+    });
+
+    // Cleanup tab
+    $('#btnScanClean').addEventListener('click', scanCleanup);
+    $('#btnRunClean').addEventListener('click', runCleanup);
+    $('#btnScanResidues').addEventListener('click', scanResidues);
+
+    // Startup tab
+    $('#btnLoadStartup').addEventListener('click', loadStartupItems);
+    $('#startupList').addEventListener('change', (e) => {
+        if (e.target.dataset.startup) {
+            toggleStartup(e.target.dataset.startup, e.target.checked);
+        }
+    });
+
+    // Processes tab
+    $('#btnLoadProcs').addEventListener('click', loadProcesses);
+    $('#processList').addEventListener('click', (e) => {
+        const killBtn = e.target.closest('.btn-kill');
+        if (killBtn) killProcess(parseInt(killBtn.dataset.pid, 10));
+    });
+    $$('.sort-btn').forEach(btn => {
+        btn.addEventListener('click', () => sortProcesses(btn.dataset.sort));
+    });
+
+    // Turbo tab
+    $('#btnTurboToggle').addEventListener('click', toggleTurboMode);
+    $('#btnScanBrowsers').addEventListener('click', scanBrowserCaches);
+    $('#btnPurgeBloat').addEventListener('click', runBloatwarePurge);
+
+    // Settings modal
+    $('#btnCloseSettings').addEventListener('click', closeSettings);
+    $('#settingsOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeSettings();
+    });
+
+    // Theme choices
+    $$('[data-theme-choice]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.themeChoice;
+            setTheme(val);
+            saveConfigKey('theme', val);
+        });
+    });
+
+    // Language choices
+    $$('[data-lang-choice]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const val = btn.dataset.langChoice;
+            await saveConfigKey('language', val);
+            state.config.language = val;
+            $('#langIcon').textContent = val === 'fr' ? '🇫🇷' : '🇺🇸';
+            await loadTranslations(val);
+            syncSettingsUI();
+        });
+    });
+
+    // Aura Néo web links
+    const openExternal = async (url) => {
+        try { await invoke('open_url', { url }); } catch (e) { console.warn('open_url failed', e); }
+    };
+    $('#btnLinkWebsite').addEventListener('click', () => openExternal('https://www.auraneo.fr'));
+    $('#btnLinkDocs').addEventListener('click', () => openExternal('https://www.auraneo.fr/aura-update'));
+
+    // Scheduler choices
+    $$('[data-sched]').forEach(btn => {
+        btn.addEventListener('click', () => applySchedule(btn.dataset.sched));
+    });
+
+    // Snapshot toggle
+    $('#snapshotToggle').addEventListener('change', (e) => {
+        const val = e.target.checked;
+        saveConfigKey('auto_snapshot', val);
+        $('#snapshotStatus').textContent = val ? t('enabled') : t('disabled');
+    });
+
+    // Close to Tray toggle
+    $('#closeToTrayToggle').addEventListener('change', (e) => {
+        const val = e.target.checked;
+        saveConfigKey('close_to_tray', val);
+        $('#closeToTrayStatus').textContent = val ? t('enabled') : t('disabled');
+    });
+
+    // AI toggle
+    $('#aiToggle').addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        if (enabled && !state.config.ai_consent_given) {
+            e.target.checked = false;
+            openConsent(null, null);
+            return;
+        }
+        saveConfigKey('ai_enabled', enabled);
+        state.config.ai_enabled = enabled;
+        $('#aiStatus').textContent = enabled ? t('ai_enabled') : t('ai_disabled');
+        $('#aiConfig').classList.toggle('hidden', !enabled);
+    });
+
+    $('#btnSaveAI').addEventListener('click', saveAIConfig);
+
+    // AI modal
+    $('#btnCloseAI').addEventListener('click', () => $('#aiOverlay').classList.add('hidden'));
+    $('#aiOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+
+    // Consent modal
+    $('#btnConsentDecline').addEventListener('click', () => {
+        $('#consentOverlay').classList.add('hidden');
+        state._pendingAI = null;
+    });
+    $('#btnConsentAccept').addEventListener('click', acceptConsent);
+
+    // Remote modal
+    $('#btnCloseRemote').addEventListener('click', () => $('#remoteOverlay').classList.add('hidden'));
+    $('#remoteOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+    });
+    $('#btnStartRemote').addEventListener('click', startRemote);
+    $('#btnStopRemote').addEventListener('click', stopRemote);
+
+    // Startup mode choices
+    $$('[data-startup-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.startupMode;
+            saveConfigKey('startup_mode', val);
+            state.config.startup_mode = val;
+            highlightOption('[data-startup-mode]', val);
+        });
+    });
+
+    // Telemetry granular toggles
+    const telemetryHandler = async (el, category, configKey) => {
+        if (!el) return;
+        el.addEventListener('change', async () => {
+            const disable = el.checked; // checked = user wants to disable telemetry
+            showToast(t('telemetry_applying'), 'success');
+            try {
+                await invoke('disable_telemetry_granular', { category, disable });
+                await saveConfigKey(configKey, !disable); // config stores "is telemetry active"
+                showToast(t('telemetry_applied'), 'success');
+            } catch (e) {
+                showToast(t('error') + ': ' + e, 'error');
+                el.checked = !el.checked; // revert
+            }
+        });
+    };
+    telemetryHandler($('#telemetryWindows'), 'windows', 'telemetry_windows');
+    telemetryHandler($('#telemetryOffice'), 'office', 'telemetry_office');
+    telemetryHandler($('#telemetryVscode'), 'vscode', 'telemetry_vscode');
+
+    // Backups
+    const btnLoadBackups = $('#btnLoadBackups');
+    if (btnLoadBackups) btnLoadBackups.addEventListener('click', loadBackups);
+    const btnCreateSnapshot = $('#btnCreateSnapshot');
+    if (btnCreateSnapshot) btnCreateSnapshot.addEventListener('click', createManualSnapshot);
+
+    // Restore warning modal
+    const btnCloseRestore = $('#btnCloseRestore');
+    if (btnCloseRestore) btnCloseRestore.addEventListener('click', closeRestoreWarning);
+    const btnRestoreCancel = $('#btnRestoreCancel');
+    if (btnRestoreCancel) btnRestoreCancel.addEventListener('click', closeRestoreWarning);
+    const restoreOverlay = $('#restoreOverlay');
+    if (restoreOverlay) restoreOverlay.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeRestoreWarning(); });
+    const btnRestoreConfirm = $('#btnRestoreConfirm');
+    if (btnRestoreConfirm) {
+        btnRestoreConfirm.addEventListener('click', async () => {
+            if (!pendingRestoreId) return;
+            showToast(t('restore_warning_title') + '…', 'success');
+            closeRestoreWarning();
+            // Windows: rstrui.exe triggers the System Restore UI
+            try { await invoke('open_url', { url: 'https://support.microsoft.com/windows/system-restore' }); } catch (_) {}
+        });
+    }
+
+    // Licence modal
+    const btnLicenceFR = $('#btnLicenceFR');
+    if (btnLicenceFR) btnLicenceFR.addEventListener('click', () => openLicence('fr'));
+    const btnLicenceEN = $('#btnLicenceEN');
+    if (btnLicenceEN) btnLicenceEN.addEventListener('click', () => openLicence('en'));
+    const btnCloseLicence = $('#btnCloseLicence');
+    if (btnCloseLicence) btnCloseLicence.addEventListener('click', () => $('#licenceOverlay').classList.add('hidden'));
+    const licenceOverlay = $('#licenceOverlay');
+    if (licenceOverlay) licenceOverlay.addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+
+    // Backup dir
+    const btnChooseBackupDir = $('#btnChooseBackupDir');
+    if (btnChooseBackupDir) btnChooseBackupDir.addEventListener('click', chooseBackupDir);
+    const btnResetBackupDir = $('#btnResetBackupDir');
+    if (btnResetBackupDir) btnResetBackupDir.addEventListener('click', resetBackupDir);
+
+    // Crash report modal
+    const btnCrashDismiss = $('#btnCrashDismiss');
+    if (btnCrashDismiss) btnCrashDismiss.addEventListener('click', dismissCrash);
+    const btnCrashSend = $('#btnCrashSend');
+    if (btnCrashSend) btnCrashSend.addEventListener('click', sendCrashReport);
+}
+
+/* ─── Backups / Snapshots ───────────────────────────────────── */
+async function loadBackups() {
+    const list = $('#backupsList');
+    if (!list) return;
+    list.innerHTML = `<p style="color:var(--text-secondary);font-size:.85rem">${t('backups_loading')}</p>`;
+    try {
+        const snapshots = await invoke('list_snapshots');
+        if (snapshots.length === 0) {
+            list.innerHTML = `<p style="color:var(--text-secondary);font-size:.85rem">${t('backups_empty')}</p>`;
+            return;
+        }
+        list.innerHTML = snapshots.map(s => `
+            <div class="backup-item">
+                <span class="backup-icon">💾</span>
+                <div class="backup-info">
+                    <div class="backup-desc">${escapeHtml(s.description)}</div>
+                    <div class="backup-date">${escapeHtml(s.date)}</div>
+                </div>
+                <button class="btn btn-sm btn-neutral btn-restore-point" data-snapshot-id="${escapeHtml(s.id)}" data-snapshot-desc="${escapeHtml(s.description)}">🔄</button>
+            </div>
+        `).join('');
+
+        // Attach restore handlers
+        list.querySelectorAll('.btn-restore-point').forEach(btn => {
+            btn.addEventListener('click', () => openRestoreWarning(btn.dataset.snapshotId, btn.dataset.snapshotDesc));
+        });
+    } catch (e) {
+        list.innerHTML = `<p style="color:var(--danger);font-size:.85rem">${t('error')}: ${escapeHtml(String(e))}</p>`;
+    }
+}
+
+async function createManualSnapshot() {
+    const btn = $('#btnCreateSnapshot');
+    if (btn) btn.disabled = true;
+    showToast(t('snapshot_before_op'), 'success');
+    try {
+        await invoke('create_snapshot', { label: 'Manuel — Aura Update' });
+        showToast(t('snapshot_created'), 'success');
+        loadBackups();
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+/* ─── Auto-snapshot before heavy cleanup ───────────────────── */
+async function safeSnapshot(label) {
+    if (state.config && state.config.auto_snapshot) {
+        try { await invoke('create_snapshot', { label }); } catch (_) { /* best-effort */ }
+    }
+}
+
+/* ─── Hardware Auto-Detection ──────────────────────────────── */
+function applyHardwareDetection(vitals) {
+    // Hide battery section if no battery detected
+    if (vitals.battery_percent == null) {
+        const battItem = $('#vitalBattery');
+        if (battItem) battItem.style.display = 'none';
+    }
+}
+
+/* ─── Splash melody (Web Audio API) ────────────────────────── */
+function playSplashMelody() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [
+            { freq: 523.25, start: 0,    dur: 0.15 },  // C5
+            { freq: 659.25, start: 0.12, dur: 0.15 },  // E5
+            { freq: 783.99, start: 0.24, dur: 0.2  },  // G5
+            { freq: 1046.5, start: 0.4,  dur: 0.35 },  // C6 (longer)
+        ];
+        const master = ctx.createGain();
+        master.gain.value = 0.08;
+        master.connect(ctx.destination);
+        for (const n of notes) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = n.freq;
+            gain.gain.setValueAtTime(0, ctx.currentTime + n.start);
+            gain.gain.linearRampToValueAtTime(1, ctx.currentTime + n.start + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.start + n.dur);
+            osc.connect(gain);
+            gain.connect(master);
+            osc.start(ctx.currentTime + n.start);
+            osc.stop(ctx.currentTime + n.start + n.dur + 0.05);
+        }
+    } catch (_) { /* Audio not supported or blocked — silent */ }
+}
+
+/* ─── Onboarding Tutorial ──────────────────────────────────── */
+const tutoSteps = [
+    { id: '#healthSection',            key: 'tuto_health'   },
+    { id: '#btnAutoPilot',             key: 'tuto_pilot'    },
+    { id: '.tab-bar',                  key: 'tuto_tabs'     },
+    { id: '.tab[data-tab="turbo"]',    key: 'tuto_turbo'    },
+    { id: '.topbar-right',             key: 'tuto_settings' },
+];
+
+let tutoCurrentStep = 0;
+let tutoOverlay = null;
+
+async function startTutorial() {
+    if (!state.config || !state.config.first_run) return;
+    tutoCurrentStep = 0;
+
+    // Create overlay
+    tutoOverlay = document.createElement('div');
+    tutoOverlay.className = 'tuto-overlay';
+    document.body.appendChild(tutoOverlay);
+
+    showTutoStep(tutoCurrentStep);
+}
+
+function showTutoStep(index) {
+    const step = tutoSteps[index];
+    const el = $(step.id);
+    if (!el) { nextTutoStep(); return; }
+
+    // Cleanup previous
+    $$('.tuto-highlight').forEach(i => i.classList.remove('tuto-highlight'));
+    const oldBubble = $('.tuto-bubble');
+    if (oldBubble) oldBubble.remove();
+
+    // Highlight target
+    el.classList.add('tuto-highlight');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Create bubble
+    const bubble = document.createElement('div');
+    bubble.className = 'tuto-bubble';
+
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    if (spaceBelow > 160) {
+        bubble.style.top = (rect.bottom + 15) + 'px';
+    } else {
+        bubble.style.top = Math.max(10, rect.top - 160) + 'px';
+    }
+    bubble.style.left = Math.max(10, Math.min(
+        window.innerWidth - 320,
+        rect.left + (rect.width / 2) - 150
+    )) + 'px';
+
+    bubble.innerHTML = `
+        <div class="tuto-step-indicator">${index + 1} / ${tutoSteps.length}</div>
+        <p>${t(step.key)}</p>
+        <div>
+            <button class="btn-tuto-next" id="btnTutoNext">
+                ${index === tutoSteps.length - 1 ? t('tuto_finish') : t('btn_next')}
+            </button>
+            <button class="btn-tuto-skip" id="btnTutoSkip">${t('tuto_skip')}</button>
+        </div>
+    `;
+    document.body.appendChild(bubble);
+
+    // Bind events via JS (CSP blocks inline onclick)
+    bubble.querySelector('#btnTutoNext').addEventListener('click', () => window.nextTutoStep());
+    bubble.querySelector('#btnTutoSkip').addEventListener('click', () => window.skipTutorial());
+}
+
+window.nextTutoStep = () => {
+    tutoCurrentStep++;
+    if (tutoCurrentStep < tutoSteps.length) {
+        showTutoStep(tutoCurrentStep);
+    } else {
+        endTutorial();
+    }
+};
+
+window.skipTutorial = () => {
+    endTutorial();
+};
+
+async function endTutorial() {
+    // Cleanup
+    const bubble = $('.tuto-bubble');
+    if (bubble) bubble.remove();
+    $$('.tuto-highlight').forEach(i => i.classList.remove('tuto-highlight'));
+    if (tutoOverlay) { tutoOverlay.remove(); tutoOverlay = null; }
+
+    // Persist: never show again
+    try {
+        await invoke('set_config_value', { key: 'first_run', value: false });
+        state.config.first_run = false;
+    } catch (e) { console.warn('Could not save first_run:', e); }
+
+    showToast(t('tuto_done'), 'success');
+}
+
+/* ─── Init ─────────────────────────────────────────────────── */
+function splashStatus(msg) {
+    const el = document.getElementById('splashStatus');
+    if (el) el.textContent = msg;
+}
+
+async function init() {
+    const splash = document.getElementById('splash');
+    const startTime = Date.now();
+
+    // Play melody as soon as possible
+    playSplashMelody();
+
+    try {
+        splashStatus(t('splash_loading'));
+
+        // Load config & platform
+        const [config, platform, version] = await Promise.all([
+            invoke('get_config'),
+            invoke('get_platform'),
+            invoke('get_app_version'),
+        ]);
+
+        state.config = config;
+        state.platform = platform;
+        $('#appVersion').textContent = 'v' + version;
+
+        // Apply theme
+        setTheme(config.theme || 'dark');
+
+        // Load translations
+        splashStatus(t('splash_translations'));
+        await loadTranslations(config.language || 'fr');
+        $('#langIcon').textContent = (config.language || 'fr') === 'fr' ? '🇫🇷' : '🇺🇸';
+
+        // Bind events
+        bindEvents();
+        await setupListeners();
+
+        // Init particle system
+        auraParticles = new ParticleSystem('particleCanvas');
+
+        // Check admin status
+        checkAdmin();
+
+        // ── Auto-scan during splash ──────────────────────────
+        splashStatus(t('scanning'));
+        const autoScanResults = await Promise.allSettled([
+            invoke('get_health_score'),
+            invoke('check_updates'),
+            invoke('scan_cleanup'),
+            invoke('get_startup_items'),
+            invoke('get_heavy_processes'),
+            invoke('get_system_vitals'),
+        ]);
+
+        // Health score
+        if (autoScanResults[0].status === 'fulfilled') {
+            renderHealthScore(autoScanResults[0].value);
+        }
+        // Updates
+        if (autoScanResults[1].status === 'fulfilled') {
+            state.updates = autoScanResults[1].value;
+            renderUpdateList();
+        }
+        // Cleanup
+        if (autoScanResults[2].status === 'fulfilled') {
+            state.cleanup = autoScanResults[2].value;
+            renderCleanupList();
+        }
+        // Startup items
+        if (autoScanResults[3].status === 'fulfilled') {
+            state.startupItems = autoScanResults[3].value;
+            renderStartupList();
+        }
+        // Processes
+        if (autoScanResults[4].status === 'fulfilled') {
+            state.processes = autoScanResults[4].value;
+            renderProcessList();
+        }
+        // System Vitals
+        if (autoScanResults[5].status === 'fulfilled') {
+            displayVitals(autoScanResults[5].value);
+            applyHardwareDetection(autoScanResults[5].value);
+        }
+
+        splashStatus(t('ready'));
+
+        // Real-time temperature refresh every 5s
+        setInterval(refreshVitals, 5000);
+
+    } catch (e) {
+        console.error('Init error:', e);
+        splashStatus(t('splash_error'));
+    }
+
+    // Minimum splash display time (1.5s) then fade out
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 1500) {
+        await new Promise(r => setTimeout(r, 1500 - elapsed));
+    }
+
+    if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+            splash.remove();
+            startTutorial();
+            checkPendingCrash();
+        }, 650);
+    }
+}
+
+/* ─── Crash Report ─────────────────────────────────────────── */
+async function checkPendingCrash() {
+    try {
+        const data = await invoke('check_pending_crash');
+        if (data) {
+            $('#crashOverlay').classList.remove('hidden');
+        }
+    } catch (_) {}
+}
+
+async function dismissCrash() {
+    try { await invoke('clear_crash_report'); } catch (_) {}
+    $('#crashOverlay').classList.add('hidden');
+}
+
+async function sendCrashReport() {
+    const msg = ($('#crashUserMessage').value || '').trim();
+    try {
+        await invoke('send_crash_report', { userMessage: msg });
+        showToast(t('crash_sent'), 'success');
+    } catch (_) {
+        showToast(t('crash_send_error'), 'error');
+    }
+    $('#crashOverlay').classList.add('hidden');
+}
+
+/* ─── Restore Warning Modal ────────────────────────────────── */
+let pendingRestoreId = null;
+
+function openRestoreWarning(snapshotId, description) {
+    pendingRestoreId = snapshotId;
+    $('#restoreOverlay').classList.remove('hidden');
+}
+
+function closeRestoreWarning() {
+    pendingRestoreId = null;
+    $('#restoreOverlay').classList.add('hidden');
+}
+
+/* ─── Licence Modal ────────────────────────────────────────── */
+const LICENCE_FR = `CONTRAT DE LICENCE UTILISATEUR (CLUF) - AURA-UPDATE
+
+Veuillez lire attentivement ce contrat de licence avant d'utiliser le logiciel Aura-Update.
+
+1. PROPRIÉTÉ INTELLECTUELLE
+Le logiciel "Aura-Update" est la propriété exclusive de la société "Aura Néo". Il est protégé par les lois françaises sur le droit d'auteur et les traités internationaux relatifs à la propriété intellectuelle.
+
+2. CONCESSION DE LICENCE
+Aura Néo vous concède une licence personnelle, non exclusive, non transférable et gratuite pour installer et utiliser le Logiciel sur vos machines (Windows et Linux) à des fins personnelles ou professionnelles.
+
+3. RESTRICTIONS
+Il est strictement interdit de copier, cloner, distribuer, modifier, désassembler ou décompiler le code source sans autorisation écrite explicite.
+
+4. DISTRIBUTION
+Le Logiciel est distribué gratuitement depuis le site officiel : https://www.auraneo.fr/aura-update/
+
+5. GARANTIE ET RESPONSABILITÉ
+Le Logiciel est fourni "TEL QUEL", sans garantie d'aucune sorte.
+
+© 2025-2026 Aura Néo. Tous droits réservés.`;
+
+const LICENCE_EN = `USER LICENSE AGREEMENT (EULA) - AURA-UPDATE
+
+Please read this license agreement carefully before using the Aura-Update software.
+
+1. INTELLECTUAL PROPERTY
+The software "Aura-Update" is the exclusive property of the company "Aura Néo". It is protected by French copyright laws and international intellectual property treaties.
+
+2. LICENSE GRANT
+Aura Néo grants you a personal, non-exclusive, non-transferable, and free license to install and use the Software on your machines (Windows and Linux) for personal or professional purposes.
+
+3. RESTRICTIONS
+You are strictly prohibited from copying, cloning, distributing, modifying, disassembling, or reverse engineering the source code without explicit written permission.
+
+4. DISTRIBUTION
+The Software is distributed for free from the official website: https://www.auraneo.fr/aura-update/
+
+5. WARRANTY AND LIABILITY
+The Software is provided "AS IS", without warranty of any kind.
+
+© 2025-2026 Aura Néo. All rights reserved.`;
+
+function openLicence(lang) {
+    const content = lang === 'fr' ? LICENCE_FR : LICENCE_EN;
+    $('#licenceContent').textContent = content;
+    $('#licenceOverlay').classList.remove('hidden');
+}
+
+/* ─── Backup Directory Picker ──────────────────────────────── */
+async function chooseBackupDir() {
+    try {
+        const { open } = window.__TAURI__.dialog;
+        const selected = await open({ directory: true, multiple: false, title: t('settings_backup_dir') });
+        if (selected) {
+            await saveConfigKey('backup_dir', selected);
+            state.config.backup_dir = selected;
+            syncBackupDirUI();
+        }
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+async function resetBackupDir() {
+    await saveConfigKey('backup_dir', '');
+    state.config.backup_dir = '';
+    syncBackupDirUI();
+}
+
+async function syncBackupDirUI() {
+    const pathEl = $('#backupDirPath');
+    const resetBtn = $('#btnResetBackupDir');
+    const diskEl = $('#diskFreeSpace');
+
+    if (state.config && state.config.backup_dir) {
+        pathEl.textContent = state.config.backup_dir;
+        resetBtn.classList.remove('hidden');
+    } else {
+        pathEl.textContent = t('backup_dir_default');
+        resetBtn.classList.add('hidden');
+    }
+
+    // Check free disk space
+    try {
+        const freeBytes = await invoke('get_disk_free_space', { path: state.config.backup_dir || null });
+        const freeGB = (freeBytes / (1024 * 1024 * 1024)).toFixed(1);
+        diskEl.textContent = t('disk_free_space').replace('{0}', freeGB + ' GB');
+        if (freeBytes < 5 * 1024 * 1024 * 1024) { // < 5 GB
+            diskEl.textContent = t('disk_low_warning');
+            diskEl.style.color = 'var(--danger)';
+        } else {
+            diskEl.style.color = '';
+        }
+    } catch (_) {
+        diskEl.textContent = '';
+    }
+}
+
+init();

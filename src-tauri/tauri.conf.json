@@ -1,0 +1,80 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Aura Update",
+  "version": "2.0.0",
+  "identifier": "fr.auraneo.auraupdate",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Aura Update — Health Center",
+        "width": 1100,
+        "height": 850,
+        "minWidth": 650,
+        "minHeight": 550,
+        "center": true,
+        "transparent": false,
+        "decorations": true,
+        "resizable": true
+      }
+    ],
+    "macOSPrivateApi": true,
+
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ia.auraneo.fr"
+    }
+  },
+  "plugins": {},
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "Centre de santé système — Mises à jour, nettoyage, optimisation",
+    "longDescription": "Aura Update Health Center maintient votre ordinateur en pleine forme : mises à jour système et logicielles, nettoyage disque, gestion du démarrage, monitoring des processus, températures CPU/GPU, mode Turbo, Auto-Pilote, et tableau de bord distant.",
+    "copyright": "© 2025-2026 Aura Néo",
+    "homepage": "https://www.auraneo.fr/aura-update",
+    "license": "Proprietary",
+    "licenseFile": "../LICENSE_FR.txt",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "allowDowngrades": false,
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["French", "English"],
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/128x128.png"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libappindicator3-1"],
+        "section": "utils",
+        "priority": "optional"
+      },
+      "rpm": {
+        "release": "1"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "entitlements": null,
+      "dmg": {
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 430, "y": 170 }
+      }
+    }
+  }
+}

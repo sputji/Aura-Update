@@ -5,3 +5,6 @@ progress/
 .idea/
 *.log
 *.vbs
+
+# Rust / Tauri build artifacts
+src-tauri/target/

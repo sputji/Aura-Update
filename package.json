@@ -1,52 +1,18 @@
 {
   "name": "aura-update",
-  "version": "0.3.2",
-  "description": "A modern and professional update manager for Windows and Linux",
-  "main": "src/frontend/main.js",
+  "version": "2.0.0",
+  "description": "Aura Update — Health Center",
   "author": "Aura Néo <contact@auraneo.fr>",
   "license": "Proprietary",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder --win",
-    "dist:linux": "electron-builder --linux tar.gz",
-    "dist:all": "electron-builder -wl"
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "prebuild": "node obfuscate.mjs",
+    "build": "tauri build",
+    "postbuild": "node restore.mjs"
   },
   "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
-  },
-  "build": {
-    "appId": "fr.auraneo.auraupdate",
-    "productName": "Aura-Update",
-    "copyright": "Copyright © 2025 Aura Néo",
-    "asar": true,
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "portable",
-      "artifactName": "${productName}.${ext}",
-      "icon": "ui/AuraUpdate.png",
-      "requestedExecutionLevel": "asInvoker",
-      "publisherName": "Aura Néo"
-    },
-    "linux": {
-      "target": [
-        "tar.gz"
-      ],
-      "artifactName": "${name}.${ext}",
-      "icon": "ui/AuraUpdate.png",
-      "category": "Utility",
-      "maintainer": "Aura Néo <contact@auraneo.fr>"
-    },
-    "files": [
-      "src/**/*",
-      "ui/**/*",
-      "locales/**/*",
-      "CHANGELOG.md",
-      "LICENSE_FR.txt",
-      "LICENSE_EN.txt",
-      "package.json"
-    ]
+    "@tauri-apps/cli": "^2",
+    "terser": "^5.46.0"
   }
 }

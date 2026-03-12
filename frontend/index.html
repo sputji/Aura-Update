@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ia.auraneo.fr">
+    <title>Aura Update — Health Center</title>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ===== PARTICLE CANVAS ===== -->
+<div class="canvas-container">
+    <canvas id="particleCanvas"></canvas>
+</div>
+
+<!-- ===== SPLASH SCREEN ===== -->
+<div id="splash">
+    <div class="splash-content">
+        <div class="splash-rings">
+            <div class="splash-ring splash-ring-1"></div>
+            <div class="splash-ring splash-ring-2"></div>
+            <div class="splash-ring splash-ring-3"></div>
+            <div class="splash-logo-wrap">
+                <img src="icons/icon.png" alt="" class="splash-logo" onerror="this.style.display='none'">
+            </div>
+        </div>
+        <h1 class="splash-title">Aura Update</h1>
+        <p class="splash-sub">Health Center</p>
+        <p id="splashStatus" class="splash-status"></p>
+        <div class="splash-dots">
+            <span class="splash-dot"></span>
+            <span class="splash-dot"></span>
+            <span class="splash-dot"></span>
+        </div>
+    </div>
+</div>
+
+<div id="app">
+
+    <!-- ===== HEADER ===== -->
+    <header id="topbar">
+        <div class="topbar-left">
+            <div class="logo-container">
+                <div class="logo-glow"></div>
+                <img src="icons/icon.png" alt="Aura Update" class="logo" onerror="this.style.display='none'">
+            </div>
+            <div class="topbar-info">
+                <h1 class="app-title">Aura Update</h1>
+                <span class="app-version" id="appVersion">v2.0.0</span>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <button id="btnRemote" class="btn-icon" data-i18n-title="title_remote" title="Remote Dashboard">📱</button>
+            <button id="btnLang" class="btn-icon" data-i18n-title="title_language" title="Language"><span id="langIcon">🇫🇷</span></button>
+            <button id="btnTheme" class="btn-icon" data-i18n-title="title_theme" title="Theme"><span id="themeIcon">🌙</span></button>
+            <button id="btnSettings" class="btn-icon" data-i18n-title="title_settings" title="Settings">⚙️</button>
+        </div>
+    </header>
+
+    <!-- ===== ADMIN BANNER ===== -->
+    <div id="adminBanner" class="banner banner-warning hidden">
+        <span class="banner-icon">🛡️</span>
+        <span id="adminBannerText" data-i18n="privileges_required">Privileges required</span>
+        <button id="btnElevate" class="btn-sm btn-warning" data-i18n="btn_elevate">Elevate</button>
+    </div>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="mainContent">
+
+        <!-- ── Health Score ── -->
+        <section id="healthSection" class="health-section">
+            <div class="health-circle-wrap">
+                <svg class="health-circle" viewBox="0 0 120 120">
+                    <defs>
+                        <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:var(--gradient-start)" />
+                            <stop offset="100%" style="stop-color:var(--gradient-end)" />
+                        </linearGradient>
+                        <filter id="healthGlow">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feMerge>
+                                <feMergeNode in="blur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <circle class="health-bg" cx="60" cy="60" r="52" />
+                    <circle id="healthArc" class="health-arc" cx="60" cy="60" r="52"
+                            stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                            filter="url(#healthGlow)" />
+                </svg>
+                <div class="health-score-text">
+                    <span id="healthValue" class="health-value">—</span>
+                    <span class="health-label" data-i18n="health_label">Health</span>
+                </div>
+            </div>
+            <div class="health-breakdown">
+                <div class="hb-item">
+                    <span class="hb-icon">🔄</span> <span id="hbUpdates">—</span>
+                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-updates" id="hbBarUpdates"></div></div>
+                </div>
+                <div class="hb-item">
+                    <span class="hb-icon">💾</span> <span id="hbDisk">—</span>
+                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-disk" id="hbBarDisk"></div></div>
+                </div>
+                <div class="hb-item">
+                    <span class="hb-icon">🚀</span> <span id="hbStartup">—</span>
+                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-startup" id="hbBarStartup"></div></div>
+                </div>
+                <div class="hb-item">
+                    <span class="hb-icon">🗑️</span> <span id="hbTemp">—</span>
+                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-temp" id="hbBarTemp"></div></div>
+                </div>
+            </div>
+
+            <!-- ── System Vitals ── -->
+            <div class="vitals-bar" id="vitalsBar">
+                <div class="vital-item" id="vitalCpu">
+                    <span class="vital-icon">🌡️</span>
+                    <span class="vital-label">CPU</span>
+                    <span class="vital-value" id="vitalCpuTemp">—</span>
+                </div>
+                <div class="vital-item" id="vitalGpu">
+                    <span class="vital-icon">🎮</span>
+                    <span class="vital-label">GPU</span>
+                    <span class="vital-value" id="vitalGpuTemp">—</span>
+                </div>
+                <div class="vital-item" id="vitalBattery">
+                    <span class="vital-icon" id="vitalBattIcon">🔋</span>
+                    <span class="vital-label" data-i18n="vital_battery">Batterie</span>
+                    <span class="vital-value" id="vitalBattPct">—</span>
+                </div>
+            </div>
+
+            <!-- ── Cool Boost ── -->
+            <div class="cooling-container" id="coolingContainer">
+                <div class="frost-overlay" id="frostOverlay"></div>
+                <button class="btn-cool" id="btnCoolBoost">
+                    <span class="cool-icon">❄️</span>
+                    <span class="cool-text" data-i18n="btn_cool_boost">Cool Boost</span>
+                </button>
+                <div class="cool-status" id="coolStatus">
+                    <span class="cool-status-text" id="coolStatusText" data-i18n="cool_ready"></span>
+                    <span class="cool-timer" id="coolTimer"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Auto-Pilot ── -->
+        <section class="autopilot-section">
+            <button id="btnAutoPilot" class="btn-autopilot">
+                <span class="autopilot-icon">🚀</span>
+                <span class="autopilot-text">
+                    <span class="autopilot-title" data-i18n="autopilot">Auto-Pilot</span>
+                    <span class="autopilot-desc" data-i18n="autopilot_desc">Update + Clean + Optimize</span>
+                </span>
+            </button>
+            <p id="autopilotStatus" class="autopilot-status hidden"></p>
+        </section>
+
+        <!-- ── Tab Bar ── -->
+        <nav class="tab-bar">
+            <button class="tab active" data-tab="updates">
+                <span>🔄</span> <span data-i18n="tab_updates">Updates</span>
+                <span id="tabUpdatesCount" class="tab-count hidden">0</span>
+            </button>
+            <button class="tab" data-tab="cleanup">
+                <span>🧹</span> <span data-i18n="tab_cleanup">Cleanup</span>
+            </button>
+            <button class="tab" data-tab="startup">
+                <span>⚡</span> <span data-i18n="tab_startup">Startup</span>
+            </button>
+            <button class="tab" data-tab="processes">
+                <span>📊</span> <span data-i18n="tab_processes">Processes</span>
+            </button>
+            <button class="tab" data-tab="turbo">
+                <span>🚀</span> <span data-i18n="tab_turbo">Turbo</span>
+            </button>
+        </nav>
+
+        <!-- ══ TAB: Updates ══ -->
+        <section id="tab-updates" class="tab-content active">
+            <div class="tab-actions">
+                <button id="btnScan" class="btn btn-primary">
+                    <span class="btn-scan-icon">🔍</span>
+                    <span data-i18n="btn_scan">Scan</span>
+                </button>
+                <span id="updateCount" class="update-count hidden"></span>
+                <button id="btnUpdateAll" class="btn btn-accent hidden">
+                    <span>⬇️</span> <span data-i18n="btn_update_all">Update All</span>
+                </button>
+            </div>
+
+            <!-- Status (welcome / scanning / up-to-date) -->
+            <div id="statusSection" class="status-card">
+                <div class="status-icon-wrap"><span id="statusIcon" class="status-icon">👋</span></div>
+                <h2 id="statusTitle" class="status-title" data-i18n="status_welcome">Welcome</h2>
+                <p id="statusDesc" class="status-desc" data-i18n="status_welcome_desc">Click Scan to check.</p>
+            </div>
+
+            <!-- Update list -->
+            <div id="updateList" class="update-list hidden"></div>
+
+            <!-- Progress -->
+            <div id="progressSection" class="progress-card hidden">
+                <div class="progress-header">
+                    <span id="progressLabel" class="progress-label"></span>
+                    <span id="progressCount" class="progress-count"></span>
+                </div>
+                <div class="progress-bar-wrap"><div id="progressBar" class="progress-bar indeterminate"></div></div>
+                <p id="progressMessage" class="progress-message"></p>
+            </div>
+        </section>
+
+        <!-- ══ TAB: Cleanup ══ -->
+        <section id="tab-cleanup" class="tab-content">
+            <div class="tab-actions">
+                <button id="btnScanClean" class="btn btn-primary">
+                    <span>🔍</span> <span data-i18n="btn_scan_cleanup">Scan Files</span>
+                </button>
+                <button id="btnRunClean" class="btn btn-accent hidden">
+                    <span>🧹</span> <span data-i18n="btn_clean_all">Clean All</span>
+                </button>
+                <button id="btnScanResidues" class="btn btn-secondary">
+                    <span>🗂️</span> <span data-i18n="btn_scan_residues">OS Residues</span>
+                </button>
+            </div>
+            <div id="cleanupList" class="cleanup-list"></div>
+            <div id="cleanupStatus" class="status-card">
+                <div class="status-icon-wrap"><span class="status-icon">🧹</span></div>
+                <h2 class="status-title" data-i18n="cleanup_welcome">Disk Cleanup</h2>
+                <p class="status-desc" data-i18n="cleanup_welcome_desc">Scan to find files to clean.</p>
+            </div>
+        </section>
+
+        <!-- ══ TAB: Startup ══ -->
+        <section id="tab-startup" class="tab-content">
+            <div class="tab-actions">
+                <button id="btnLoadStartup" class="btn btn-primary">
+                    <span>🔍</span> <span data-i18n="btn_load_startup">Load Startup Items</span>
+                </button>
+            </div>
+            <div id="startupList" class="startup-list"></div>
+            <div id="startupStatus" class="status-card">
+                <div class="status-icon-wrap"><span class="status-icon">⚡</span></div>
+                <h2 class="status-title" data-i18n="startup_welcome">Startup Manager</h2>
+                <p class="status-desc" data-i18n="startup_welcome_desc">Disable apps that slow down boot.</p>
+            </div>
+        </section>
+
+        <!-- ══ TAB: Processes ══ -->
+        <section id="tab-processes" class="tab-content">
+            <div class="tab-actions">
+                <button id="btnLoadProcs" class="btn btn-primary">
+                    <span>🔍</span> <span data-i18n="btn_load_procs">Scan Processes</span>
+                </button>
+                <div class="sort-buttons">
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="cpu-desc" title="CPU ↓">CPU ↓</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="cpu-asc" title="CPU ↑">CPU ↑</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="ram-desc" title="RAM ↓">RAM ↓</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="ram-asc" title="RAM ↑">RAM ↑</button>
+                </div>
+            </div>
+            <div id="processList" class="process-list"></div>
+            <div id="processStatus" class="status-card">
+                <div class="status-icon-wrap"><span class="status-icon">📊</span></div>
+                <h2 class="status-title" data-i18n="procs_welcome">Resource Monitor</h2>
+                <p class="status-desc" data-i18n="procs_welcome_desc">Find and stop heavy processes.</p>
+            </div>
+        </section>
+
+        <!-- ══ TAB: Turbo ══ -->
+        <section id="tab-turbo" class="tab-content">
+            <div class="turbo-container">
+
+                <!-- ── Main Boost Card ── -->
+                <div class="turbo-card main-boost">
+                    <div class="turbo-visual">
+                        <div class="turbo-main-icon">🚀</div>
+                        <div class="turbo-glow"></div>
+                    </div>
+                    <div class="turbo-info">
+                        <h2 id="turboStatusText" data-i18n="turbo_disabled">Mode Turbo : DÉSACTIVÉ</h2>
+                        <p data-i18n="turbo_boost_desc">Libère 100% de la puissance pour vos jeux et logiciels pro.</p>
+                        <button id="btnTurboToggle" class="btn-turbo" data-i18n="turbo_activate">ACTIVER LE BOOST</button>
+                    </div>
+                </div>
+
+                <!-- ── Browser Cache Scan ── -->
+                <div class="turbo-card">
+                    <div class="turbo-header">
+                        <span>🌐</span>
+                        <h3 data-i18n="turbo_browser_cache">Caches Navigateurs</h3>
+                    </div>
+                    <p class="turbo-desc" data-i18n="turbo_browser_desc">Scanne et nettoie les caches Chrome, Edge, Firefox, Brave, Opera.</p>
+                    <button id="btnScanBrowsers" class="btn btn-primary">
+                        <span>🔍</span> <span data-i18n="btn_scan_browsers">Scanner les navigateurs</span>
+                    </button>
+                    <div id="browserCacheList" class="cleanup-list"></div>
+                </div>
+
+                <!-- ── Mini Cards Grid ── -->
+                <div class="turbo-grid">
+                    <div class="turbo-card mini">
+                        <span>🛡️</span>
+                        <h3 data-i18n="turbo_bloatware">Désinstalleur Forcé</h3>
+                        <p data-i18n="turbo_bloatware_desc">Supprime les bloatwares Windows (Xbox, News, Cortana…).</p>
+                        <button id="btnPurgeBloat" class="btn btn-sm btn-accent" data-i18n="btn_open_bloat">Ouvrir</button>
+                        <div id="bloatwareResults" class="bloatware-results"></div>
+                    </div>
+                    <div class="turbo-card mini">
+                        <span>🧠</span>
+                        <h3 data-i18n="turbo_predictive">Analyse Prédictive</h3>
+                        <p id="predictiveValue" class="predictive-value">—</p>
+                        <p class="predictive-label" data-i18n="turbo_predicted_label">Gain estimé du prochain nettoyage</p>
+                    </div>
+                    <div class="turbo-card mini">
+                        <span>💾</span>
+                        <h3 data-i18n="backups_title">Sauvegardes système</h3>
+                        <p class="turbo-desc" data-i18n="backups_desc">Points de restauration créés automatiquement.</p>
+                        <div class="backup-actions">
+                            <button id="btnLoadBackups" class="btn btn-sm btn-primary" data-i18n="btn_load_backups">Charger</button>
+                            <button id="btnCreateSnapshot" class="btn btn-sm btn-accent" data-i18n="btn_create_snapshot">Créer un point</button>
+                        </div>
+                        <div id="backupsList" class="backups-list"></div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ===== SETTINGS MODAL ===== -->
+    <div id="settingsOverlay" class="modal-overlay hidden">
+        <div class="modal settings-modal">
+            <div class="modal-header">
+                <h2 data-i18n="settings_title">Settings</h2>
+                <button id="btnCloseSettings" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <!-- Theme -->
+                <div class="setting-group">
+                    <label data-i18n="settings_theme">Theme</label>
+                    <div class="setting-options">
+                        <button class="btn-option" data-theme-choice="dark">🌙 <span data-i18n="theme_dark">Dark</span></button>
+                        <button class="btn-option" data-theme-choice="light">☀️ <span data-i18n="theme_light">Light</span></button>
+                        <button class="btn-option" data-theme-choice="system">💻 <span data-i18n="theme_system">System</span></button>
+                    </div>
+                </div>
+                <!-- Language -->
+                <div class="setting-group">
+                    <label data-i18n="settings_language">Language</label>
+                    <div class="setting-options">
+                        <button class="btn-option" data-lang-choice="fr">🇫🇷 Français</button>
+                        <button class="btn-option" data-lang-choice="en">🇺🇸 English</button>
+                    </div>
+                </div>
+                <!-- Scheduler -->
+                <div class="setting-group" id="schedulerGroup">
+                    <label data-i18n="settings_scheduler">Scheduled Checks</label>
+                    <p id="schedAdminNotice" class="setting-notice hidden" data-i18n="sched_requires_admin">Requiert les droits Administrateur</p>
+                    <div class="setting-options" id="schedOptions">
+                        <button class="btn-option" data-sched="disabled" data-i18n="sched_disabled">Off</button>
+                        <button class="btn-option" data-sched="startup" data-i18n="sched_startup">At Startup</button>
+                        <button class="btn-option" data-sched="daily" data-i18n="sched_daily">Daily</button>
+                        <button class="btn-option" data-sched="weekly" data-i18n="sched_weekly">Weekly</button>
+                    </div>
+                </div>
+                <!-- Snapshot -->
+                <div class="setting-group">
+                    <label data-i18n="settings_snapshot">Auto Snapshot</label>
+                    <p class="setting-desc" data-i18n="settings_snapshot_desc">Create a restore point before updates.</p>
+                    <div class="setting-row">
+                        <label class="toggle"><input type="checkbox" id="snapshotToggle"><span class="toggle-slider"></span></label>
+                        <span id="snapshotStatus" data-i18n="enabled">Enabled</span>
+                    </div>
+                </div>
+                <!-- AI -->
+                <div class="setting-group">
+                    <label data-i18n="settings_ai">AI Assistant</label>
+                    <p class="setting-desc" data-i18n="settings_ai_desc">AI-powered help. Only package info sent.</p>
+                    <div class="setting-row">
+                        <label class="toggle"><input type="checkbox" id="aiToggle"><span class="toggle-slider"></span></label>
+                        <span id="aiStatus" data-i18n="ai_disabled">Disabled</span>
+                    </div>
+                    <div id="aiConfig" class="ai-config hidden">
+                        <div class="input-group">
+                            <label data-i18n="ai_apikey">API Key</label>
+                            <input type="password" id="aiApiKey" data-i18n-placeholder="api_key_placeholder" placeholder="Your API key" class="input">
+                        </div>
+                        <button id="btnSaveAI" class="btn btn-sm btn-primary" data-i18n="btn_save">Save</button>
+                    </div>
+                </div>
+                <!-- Startup Mode -->
+                <div class="setting-group">
+                    <label data-i18n="settings_startup_mode">Mode de démarrage</label>
+                    <div class="setting-options">
+                        <button class="btn-option" data-startup-mode="visible">👁️ <span data-i18n="startup_visible">Visible</span></button>
+                        <button class="btn-option" data-startup-mode="minimized">⬇️ <span data-i18n="startup_minimized">Minimisé</span></button>
+                        <button class="btn-option" data-startup-mode="tray">🔽 <span data-i18n="startup_tray">Barre des tâches</span></button>
+                    </div>
+                </div>
+                <!-- Close to Tray -->
+                <div class="setting-group">
+                    <label data-i18n="close_to_tray_title">Fermer dans la barre des tâches</label>
+                    <p class="setting-desc" data-i18n="close_to_tray_desc">L'application reste active en arrière-plan lors de la fermeture.</p>
+                    <div class="setting-row">
+                        <label class="toggle"><input type="checkbox" id="closeToTrayToggle"><span class="toggle-slider"></span></label>
+                        <span id="closeToTrayStatus" data-i18n="disabled">Désactivé</span>
+                    </div>
+                </div>
+                <!-- Telemetry Granular -->
+                <div class="setting-group">
+                    <label data-i18n="settings_telemetry">Contrôle Télémétrie</label>
+                    <p class="setting-desc" data-i18n="settings_telemetry_desc">Désactivez la télémétrie par catégorie.</p>
+                    <div class="telemetry-grid">
+                        <label class="telemetry-item">
+                            <input type="checkbox" id="telemetryWindows">
+                            <span class="telemetry-label">🪟 <span data-i18n="telemetry_windows">Windows</span></span>
+                        </label>
+                        <label class="telemetry-item">
+                            <input type="checkbox" id="telemetryOffice">
+                            <span class="telemetry-label">📎 <span data-i18n="telemetry_office">Office</span></span>
+                        </label>
+                        <label class="telemetry-item">
+                            <input type="checkbox" id="telemetryVscode">
+                            <span class="telemetry-label">💻 <span data-i18n="telemetry_vscode">VS Code</span></span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Backup Directory -->
+                <div class="setting-group">
+                    <label data-i18n="settings_backup_dir">Dossier de sauvegarde</label>
+                    <p class="setting-desc" data-i18n="settings_backup_dir_desc">Choisissez où stocker les sauvegardes si votre disque principal est plein.</p>
+                    <div class="setting-row backup-dir-row">
+                        <span id="backupDirPath" class="backup-dir-path" data-i18n="backup_dir_default">Par défaut (système)</span>
+                        <button id="btnChooseBackupDir" class="btn btn-sm btn-secondary">📂 <span data-i18n="btn_choose_folder">Choisir</span></button>
+                        <button id="btnResetBackupDir" class="btn btn-sm btn-neutral hidden">✕</button>
+                    </div>
+                    <p id="diskFreeSpace" class="setting-notice"></p>
+                </div>
+                <!-- Aura Néo Links -->
+                <div class="setting-group">
+                    <label data-i18n="settings_links">Liens Aura Néo</label>
+                    <div class="setting-options">
+                        <button id="btnLinkWebsite" class="btn-option">🌐 <span data-i18n="link_website">Site Web Aura Néo</span></button>
+                        <button id="btnLinkDocs" class="btn-option">🌐 <span data-i18n="link_docs">Aura Update</span></button>
+                    </div>
+                </div>
+                <!-- Licence -->
+                <div class="setting-group">
+                    <label data-i18n="settings_licence">Licence</label>
+                    <div class="setting-options">
+                        <button id="btnLicenceFR" class="btn-option">📜 Licence FR</button>
+                        <button id="btnLicenceEN" class="btn-option">📜 Licence EN</button>
+                    </div>
+                    <p class="setting-desc">© 2025-2026 Aura Néo</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== AI HELP MODAL ===== -->
+    <div id="aiOverlay" class="modal-overlay hidden">
+        <div class="modal ai-modal">
+            <div class="modal-header">
+                <h2 data-i18n="title_ai">🤖 AI Assistant</h2>
+                <button id="btnCloseAI" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="aiLoading" class="ai-loading"><div class="spinner"></div><p data-i18n="ai_analyzing">Analyzing…</p></div>
+                <div id="aiResult" class="ai-result hidden"><div id="aiResultContent" class="ai-content"></div></div>
+                <div id="aiError" class="ai-error hidden"><p data-i18n="ai_error">AI unavailable.</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CONSENT MODAL ===== -->
+    <div id="consentOverlay" class="modal-overlay hidden">
+        <div class="modal consent-modal">
+            <div class="modal-header"><h2 data-i18n="consent_title">AI Conditions</h2></div>
+            <div class="modal-body">
+                <p data-i18n="consent_text">By enabling AI, you agree:</p>
+                <ul class="consent-list">
+                    <li data-i18n="consent_1">Only software names/versions/errors sent</li>
+                    <li data-i18n="consent_2">No personal data transmitted</li>
+                    <li data-i18n="consent_3">AI provides suggestions only</li>
+                    <li data-i18n="consent_4">You can disable anytime</li>
+                </ul>
+                <div class="consent-actions">
+                    <button id="btnConsentDecline" class="btn btn-neutral" data-i18n="btn_decline">Decline</button>
+                    <button id="btnConsentAccept" class="btn btn-primary" data-i18n="btn_accept">Accept</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== REMOTE DASHBOARD MODAL ===== -->
+    <div id="remoteOverlay" class="modal-overlay hidden">
+        <div class="modal remote-modal">
+            <div class="modal-header">
+                <h2 data-i18n="title_remote_dashboard">📱 Remote Dashboard</h2>
+                <button id="btnCloseRemote" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body remote-body">
+                <div id="remoteOff" class="remote-off">
+                    <p data-i18n="remote_desc">Control your PC from your phone.</p>
+                    <button id="btnStartRemote" class="btn btn-primary" data-i18n="remote_start">Start Server</button>
+                </div>
+                <div id="remoteLoading" class="remote-loading hidden">
+                    <div class="remote-loader">
+                        <div class="remote-pulse"></div>
+                        <span class="remote-loader-icon">📡</span>
+                    </div>
+                    <p class="remote-loading-text" data-i18n="remote_loading">Starting server…</p>
+                    <p class="remote-loading-sub" data-i18n="remote_loading_sub">Connecting to your local network</p>
+                </div>
+                <div id="remoteOn" class="remote-on hidden">
+                    <div id="remoteQR" class="remote-qr"></div>
+                    <p id="remoteURL" class="remote-url"></p>
+                    <p class="remote-hint" data-i18n="remote_hint">Scan with your phone</p>
+                    <button id="btnStopRemote" class="btn btn-neutral" data-i18n="remote_stop">Stop Server</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RESTORE WARNING MODAL ===== -->
+    <div id="restoreOverlay" class="modal-overlay hidden">
+        <div class="modal restore-modal">
+            <div class="modal-header">
+                <h2>⚠️ <span data-i18n="restore_warning_title">Restauration système</span></h2>
+                <button id="btnCloseRestore" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="restore-warning-icon">⚠️</div>
+                <p class="restore-warning-text" data-i18n="restore_warning_text">Attention : La restauration du système va fermer toutes les applications et redémarrer votre ordinateur immédiatement. Enregistrez votre travail avant de continuer.</p>
+                <div class="restore-actions">
+                    <button id="btnRestoreCancel" class="btn btn-neutral" data-i18n="btn_decline">Annuler</button>
+                    <button id="btnRestoreConfirm" class="btn btn-danger" data-i18n="btn_restore_confirm">Restaurer maintenant</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CRASH REPORT MODAL ===== -->
+    <div id="crashOverlay" class="modal-overlay hidden">
+        <div class="modal crash-modal">
+            <div class="modal-header">
+                <h2 data-i18n="crash_title">⚠️ Crash détecté</h2>
+            </div>
+            <div class="modal-body">
+                <p data-i18n="crash_desc">L'application a subi un crash lors de la dernière session.</p>
+                <div class="input-group">
+                    <label data-i18n="crash_what_doing">Que faisiez-vous ?</label>
+                    <textarea id="crashUserMessage" class="input" rows="3" data-i18n-placeholder="crash_placeholder" placeholder="Décrivez ce que vous étiez en train de faire..."></textarea>
+                </div>
+                <div class="consent-actions">
+                    <button id="btnCrashDismiss" class="btn btn-neutral" data-i18n="btn_close">Fermer</button>
+                    <button id="btnCrashSend" class="btn btn-primary" data-i18n="crash_send">Envoyer le rapport</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== LICENCE MODAL ===== -->
+    <div id="licenceOverlay" class="modal-overlay hidden">
+        <div class="modal licence-modal">
+            <div class="modal-header">
+                <h2 data-i18n="settings_licence">Licence</h2>
+                <button id="btnCloseLicence" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <pre id="licenceContent" class="licence-content"></pre>
+            </div>
+        </div>
+    </div>
+
+</div>
+<script src="js/app.js" defer></script>
+</body>
+</html>

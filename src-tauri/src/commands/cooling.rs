@@ -111,8 +111,10 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
             }
             Ok(o) => {
                 let err = String::from_utf8_lossy(&o.stderr);
-                let short = if err.len() > 80 { &err[..80] } else { &err };
-                log.push(format!("[{}] SKIP: {}", vendor_name, short.trim()));
+                // Use char-based truncation to avoid a byte-boundary panic on
+                // multi-byte characters (e.g. accented French output from PowerShell).
+                let truncated_err: String = err.chars().take(80).collect();
+                log.push(format!("[{}] SKIP: {}", vendor_name, truncated_err.trim()));
             }
             Err(e) => {
                 log.push(format!("[{}] ERROR: {}", vendor_name, e));

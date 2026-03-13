@@ -1,0 +1,6 @@
+{"panic":"panicked at src\\commands\\cooling.rs:114:53:
+byte index 80 is not a char boundary; it is inside '�' (bytes 78..81) of `Get-WmiObject : Classe non valide ��Lenovo_SetBiosSetting��
+Au caract�re Ligne:1 : 2
++ (Get-WmiObject -Namespace root/WMI -Class Lenovo_SetBiosSetting -Erro ...
++  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + Cat`[...]","os":"windows"}

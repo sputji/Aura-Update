@@ -209,21 +209,33 @@ pub fn get_vitals() -> Result<serde_json::Value, String> {
 }
 
 /// Lightweight sync helper: returns (cpu_temp, gpu_temp) from sysinfo.
+/// Reuses COMP_CACHE to avoid allocating a new Components list on every call.
 /// Falls back to WMI/nvidia-smi on Windows when sysinfo returns no sensors.
 fn get_vitals_internal() -> (Option<f32>, Option<f32>) {
-    let components = Components::new_with_refreshed_list();
+    let mut lock = COMP_CACHE.lock().unwrap();
+    if lock.is_none() {
+        *lock = Some(Components::new_with_refreshed_list());
+    } else {
+        lock.as_mut().unwrap().refresh_list();
+    }
+
     let mut cpu: Option<f32> = None;
     let mut gpu: Option<f32> = None;
-    for c in &components {
-        let label = c.label().to_lowercase();
-        let temp = c.temperature();
-        if cpu.is_none() && (label.contains("cpu") || label.contains("core") || label.contains("tctl") || label.contains("package")) {
-            cpu = Some(temp);
-        }
-        if gpu.is_none() && (label.contains("gpu") || label.contains("edge") || label.contains("junction") || label.contains("nvidia") || label.contains("amdgpu")) {
-            gpu = Some(temp);
+    if let Some(comps) = lock.as_ref() {
+        for c in comps.iter() {
+            let label = c.label().to_lowercase();
+            let temp = c.temperature();
+            if cpu.is_none() && (label.contains("cpu") || label.contains("core") || label.contains("tctl") || label.contains("package")) {
+                cpu = Some(temp);
+            }
+            if gpu.is_none() && (label.contains("gpu") || label.contains("edge") || label.contains("junction") || label.contains("nvidia") || label.contains("amdgpu")) {
+                gpu = Some(temp);
+            }
         }
     }
+    // Release the lock before calling potentially long-running PowerShell commands below.
+    drop(lock);
+
     // Windows fallback: WMI thermal zone + nvidia-smi
     #[cfg(target_os = "windows")]
     {
@@ -308,28 +320,37 @@ pub struct ComponentInfo {
 
 #[tauri::command]
 pub fn get_system_vitals() -> SystemVitals {
-    let components = Components::new_with_refreshed_list();
+    let mut lock = COMP_CACHE.lock().unwrap();
+    if lock.is_none() {
+        *lock = Some(Components::new_with_refreshed_list());
+    } else {
+        lock.as_mut().unwrap().refresh_list();
+    }
 
     let mut cpu_temp: Option<f32> = None;
     let mut gpu_temp: Option<f32> = None;
     let mut comp_list = Vec::new();
 
-    for c in &components {
-        let label = c.label().to_lowercase();
-        let temp = c.temperature();
+    if let Some(components) = lock.as_ref() {
+        for c in components.iter() {
+            let label = c.label().to_lowercase();
+            let temp = c.temperature();
 
-        comp_list.push(ComponentInfo {
-            label: c.label().to_string(),
-            temperature: temp,
-        });
+            comp_list.push(ComponentInfo {
+                label: c.label().to_string(),
+                temperature: temp,
+            });
 
-        if cpu_temp.is_none() && (label.contains("cpu") || label.contains("core") || label.contains("tctl") || label.contains("package")) {
-            cpu_temp = Some(temp);
-        }
-        if gpu_temp.is_none() && (label.contains("gpu") || label.contains("edge") || label.contains("junction") || label.contains("nvidia") || label.contains("amdgpu")) {
-            gpu_temp = Some(temp);
+            if cpu_temp.is_none() && (label.contains("cpu") || label.contains("core") || label.contains("tctl") || label.contains("package")) {
+                cpu_temp = Some(temp);
+            }
+            if gpu_temp.is_none() && (label.contains("gpu") || label.contains("edge") || label.contains("junction") || label.contains("nvidia") || label.contains("amdgpu")) {
+                gpu_temp = Some(temp);
+            }
         }
     }
+    // Release the lock before calling potentially long-running PowerShell/process commands below.
+    drop(lock);
 
     // Windows fallback: WMI thermal zone + nvidia-smi
     #[cfg(target_os = "windows")]

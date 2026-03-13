@@ -126,9 +126,17 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         log.push("Fan EC: No vendor matched → Power Plan mode only".into());
     }
 
+    // If no vendor EC succeeded while activating, report Power Plan-only result so
+    // the frontend can display an honest status instead of claiming full fan control.
+    let message = if active {
+        if vendor_success { "cool_boost_started".into() } else { "cool_boost_powerplan_only".into() }
+    } else {
+        "cool_boost_finished".into()
+    };
+
     CoolBoostResult {
         success: true,
-        message: if active { "cool_boost_started".into() } else { "cool_boost_finished".into() },
+        message,
         log,
     }
 }

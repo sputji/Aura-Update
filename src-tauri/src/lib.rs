@@ -185,6 +185,7 @@ pub fn run() {
             commands::health::run_autopilot,
             commands::health::get_system_vitals,
             commands::health::get_vitals,
+            commands::health::get_system_info,
             // ── Cooling ──────────────────────────────────────
             commands::cooling::set_fan_boost,
             // ── Snapshot ─────────────────────────────────────

@@ -7,4 +7,5 @@ progress/
 *.vbs
 
 # Rust / Tauri build artifacts
-src-tauri/target/src-tauri/gen/schemas/
+src-tauri/target/
+src-tauri/gen/schemas/

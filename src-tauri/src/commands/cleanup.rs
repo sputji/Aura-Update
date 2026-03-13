@@ -66,7 +66,7 @@ pub async fn scan_cleanup() -> Result<CleanupReport, String> {
         }
     }
 
-    let total: u64 = items.iter().map(|i| i.size_bytes).sum();
+    let total: u64 = items.iter().map(|i: &CleanupItem| i.size_bytes).sum();
     Ok(CleanupReport { items, total_bytes: total })
 }
 
@@ -258,7 +258,7 @@ pub async fn scan_os_residues() -> Result<CleanupReport, String> {
         }
     }
 
-    let total: u64 = items.iter().map(|i| i.size_bytes).sum();
+    let total: u64 = items.iter().map(|i: &CleanupItem| i.size_bytes).sum();
     Ok(CleanupReport { items, total_bytes: total })
 }
 
@@ -392,7 +392,7 @@ pub async fn scan_browser_caches() -> Result<CleanupReport, String> {
         }
     }
 
-    let total: u64 = items.iter().map(|i| i.size_bytes).sum();
+    let total: u64 = items.iter().map(|i: &CleanupItem| i.size_bytes).sum();
     Ok(CleanupReport { items, total_bytes: total })
 }
 

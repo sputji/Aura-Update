@@ -172,7 +172,8 @@ pub async fn send_crash_report(
     });
 
     let result = reqwest::Client::new()
-        .post("https://api.auraneo.fr/crash-report")
+        .post("https://api.auraneo.fr/aura-update/v1/crash-report")
+        .header("X-Aura-Token", "aura_update_crash_2026")
         .json(&payload)
         .timeout(std::time::Duration::from_secs(10))
         .send()

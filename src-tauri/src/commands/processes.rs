@@ -51,9 +51,13 @@ pub fn get_heavy_processes() -> Vec<ProcessInfo> {
 /// Kill a process by PID.
 #[tauri::command]
 pub fn kill_process(pid: u32) -> Result<bool, String> {
-    let mut sys = System::new();
-    sys.refresh_all();
+    let mut lock = SYS_CACHE.lock().unwrap();
+    if lock.is_none() {
+        *lock = Some(System::new());
+    }
+    let sys = lock.as_mut().unwrap();
     let spid = sysinfo::Pid::from(pid as usize);
+    sys.refresh_processes(ProcessesToUpdate::Some(&[spid]), true);
     if let Some(process) = sys.process(spid) {
         process.kill();
         Ok(true)

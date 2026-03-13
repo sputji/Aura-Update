@@ -3,12 +3,16 @@ name: Sortie de Production Aura Update v2.2
 on:
   push:
     tags:
-      - 'v*' # Se déclenche uniquement quand tu crées un tag (ex: v2.2.0)
+      - 'v*' # Se déclenche uniquement quand tu crées un tag (ex: v2.2.1)
 
 jobs:
   build-tauri:
     permissions:
       contents: write
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     strategy:
       fail-fast: false
       matrix:
@@ -28,12 +32,14 @@ jobs:
       - name: Installation Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Installation Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Ajout des cibles macOS (Universal)
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Dépendances Linux
         if: matrix.platform == 'ubuntu-22.04'
@@ -41,14 +47,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Installation des paquets NPM (Terser, etc.)
+      - name: Installation des paquets NPM
         run: npm install
 
       - name: Lecture du README pour la Release
         id: get_readme
         shell: bash
         run: |
-          # Lit le README.md pour l'insérer dans la note de version
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "notes<<$EOF" >> $GITHUB_OUTPUT
           cat README.md >> $GITHUB_OUTPUT

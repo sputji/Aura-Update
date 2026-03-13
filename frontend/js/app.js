@@ -1915,8 +1915,8 @@ async function init() {
 
         splashStatus(t('ready'));
 
-        // Real-time temperature refresh every 5s
-        setInterval(refreshVitals, 5000);
+        // Real-time temperature refresh every 10s (CPU-friendly)
+        setInterval(refreshVitals, 10000);
 
     } catch (e) {
         console.error('Init error:', e);

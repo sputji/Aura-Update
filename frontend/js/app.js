@@ -313,6 +313,13 @@ async function runCoolBoost() {
             resetCoolingUI();
             return;
         }
+
+        // If only the Power Plan was changed (no EC fan control), show an informative
+        // status message so the user knows the exact extent of the action.
+        if (result.message === 'cool_boost_powerplan_only') {
+            statusText.textContent = t('cool_boost_powerplan_only');
+            showToast(t('cool_boost_powerplan_only'), '');
+        }
     } catch (e) {
         showToast(t('cool_error'), 'error');
         resetCoolingUI();
@@ -1697,6 +1704,32 @@ function applyHardwareDetection(vitals) {
     }
 }
 
+/* ─── System Info Badges ───────────────────────────────────── */
+async function loadSystemInfoBadges() {
+    try {
+        const info = await invoke('get_system_info');
+        const osEl  = $('#sysBadgeOsVal');
+        const cpuEl = $('#sysBadgeCpuVal');
+        const gpuEl = $('#sysBadgeGpuVal');
+        const ramEl = $('#sysBadgeRamVal');
+
+        if (osEl && info.os)   osEl.textContent  = info.os;
+        if (cpuEl && info.cpu) cpuEl.textContent = info.cpu;
+        if (ramEl) {
+            const used  = info.ram_used_gb.toFixed(1);
+            const total = info.ram_total_gb.toFixed(1);
+            ramEl.textContent = `${used} / ${total} GB`;
+        }
+        if (gpuEl && info.gpu) {
+            gpuEl.textContent = info.gpu;
+            const gpuBadge = $('#sysBadgeGpu');
+            if (gpuBadge) gpuBadge.classList.remove('hidden');
+        }
+    } catch (e) {
+        console.warn('System info badges error', e);
+    }
+}
+
 /* ─── Splash melody (Web Audio API) ────────────────────────── */
 function playSplashMelody() {
     try {
@@ -1912,6 +1945,9 @@ async function init() {
             displayVitals(autoScanResults[5].value);
             applyHardwareDetection(autoScanResults[5].value);
         }
+
+        // System info badges (non-blocking — runs after main scan)
+        loadSystemInfoBadges();
 
         splashStatus(t('ready'));
 

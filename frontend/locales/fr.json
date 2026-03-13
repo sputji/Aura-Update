@@ -240,5 +240,10 @@
     "crash_send": "Envoyer le rapport",
     "crash_sent": "Rapport de crash envoyé, merci !",
     "crash_send_error": "Impossible d'envoyer le rapport",
-    "btn_close": "Fermer"
+    "btn_close": "Fermer",
+
+    "sys_badge_os": "Système",
+    "sys_badge_cpu": "Processeur",
+    "sys_badge_gpu": "Carte graphique",
+    "sys_badge_ram": "Mémoire"
 }

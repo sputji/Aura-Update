@@ -411,6 +411,39 @@ body {
 .vital-value.warm { color: var(--warning); }
 .vital-value.cool { color: var(--success); }
 
+/* ───── System Info Badges ────────────────────────────────── */
+.sys-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 12px;
+}
+.sys-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    color: var(--text-secondary);
+    backdrop-filter: blur(8px);
+    min-width: 0;
+    max-width: 260px;
+}
+.sys-badge-icon { font-size: .9rem; flex-shrink: 0; }
+.sys-badge-label { font-weight: 500; flex-shrink: 0; }
+.sys-badge-value {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
 /* ───── Cool Boost ────────────────────────────────────────── */
 .cooling-container {
     position: relative;

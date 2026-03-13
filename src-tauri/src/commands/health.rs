@@ -429,3 +429,114 @@ fn get_battery_info() -> (Option<u8>, bool) {
         .unwrap_or(false);
     (capacity, charging)
 }
+
+// ── System Info Command ──────────────────────────────────────────────
+
+/// System identification info for the badge row and log header.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub os: String,
+    pub cpu: String,
+    pub gpu: String,
+    pub ram_total_gb: f32,
+    pub ram_used_gb: f32,
+}
+
+/// Retrieve OS, CPU, GPU and RAM identification in a single call.
+/// Used by the frontend badge row and embedded in log headers.
+#[tauri::command]
+pub fn get_system_info() -> SystemInfo {
+    use sysinfo::System;
+
+    let mut sys = System::new();
+    sys.refresh_memory();
+    sys.refresh_cpu_list(sysinfo::CpuRefreshKind::everything());
+
+    let os_name = System::name().unwrap_or_else(|| std::env::consts::OS.to_string());
+    let os_version = System::long_os_version().unwrap_or_default();
+    let os = format!("{} {}", os_name, os_version).trim().to_string();
+
+    let cpu_count = sys.cpus().len();
+    let cpu = sys
+        .cpus()
+        .first()
+        .map(|c| {
+            let brand = c.brand().trim().to_string();
+            if cpu_count > 1 {
+                format!("{} ({} Threads)", brand, cpu_count)
+            } else {
+                brand
+            }
+        })
+        .unwrap_or_else(|| "Unknown CPU".to_string());
+
+    let total_bytes = sys.total_memory();
+    let used_bytes = sys.used_memory();
+    let ram_total_gb = (total_bytes as f64 / (1024.0 * 1024.0 * 1024.0)) as f32;
+    let ram_used_gb = (used_bytes as f64 / (1024.0 * 1024.0 * 1024.0)) as f32;
+
+    let gpu = detect_gpu_name();
+
+    SystemInfo {
+        os,
+        cpu,
+        gpu,
+        ram_total_gb: (ram_total_gb * 10.0).round() / 10.0,
+        ram_used_gb: (ram_used_gb * 10.0).round() / 10.0,
+    }
+}
+
+/// Best-effort GPU name detection. Returns an empty string when unavailable.
+fn detect_gpu_name() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        if let Ok(out) = Command::new("powershell")
+            .args(["-NoProfile", "-Command",
+                "(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Name)"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
+            let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !name.is_empty() && out.status.success() {
+                return name;
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = std::process::Command::new("system_profiler")
+            .args(["SPDisplaysDataType", "-json"])
+            .output()
+        {
+            if let Ok(txt) = std::str::from_utf8(&out.stdout) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(txt) {
+                    if let Some(name) = val["SPDisplaysDataType"][0]["sppci_model"].as_str() {
+                        return name.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(out) = std::process::Command::new("lspci").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                let lower = line.to_lowercase();
+                if lower.contains("vga") || lower.contains("3d controller") || lower.contains("display") {
+                    // Extract the part after the colon following the class
+                    if let Some(pos) = line.find(": ") {
+                        return line[pos + 2..].trim().to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    String::new()
+}

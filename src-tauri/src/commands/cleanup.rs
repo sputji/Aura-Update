@@ -33,6 +33,16 @@ pub async fn scan_cleanup() -> Result<CleanupReport, String> {
             scan_dir(&mut items, &wintemp, "temp", "Windows Temp");
             let sw_dist = PathBuf::from(&windir).join("SoftwareDistribution").join("Download");
             scan_dir(&mut items, &sw_dist, "update_cache", "Windows Update cache");
+            // Old Windows Update logs (safe to remove)
+            let wu_logs = PathBuf::from(&windir).join("Logs").join("WindowsUpdate");
+            scan_dir(&mut items, &wu_logs, "temp", "Windows Update logs");
+        }
+        // Thumbnail database files (Explorer folder — only .db files, not the whole dir)
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            let explorer_dir = PathBuf::from(&local).join("Microsoft").join("Windows").join("Explorer");
+            scan_files_matching(&mut items, &explorer_dir, "cache", "Thumbnail cache", |name| {
+                name.starts_with("thumbcache_") && name.ends_with(".db")
+            });
         }
     }
 
@@ -73,6 +83,48 @@ fn scan_dir(items: &mut Vec<CleanupItem>, dir: &Path, category: &str, desc: &str
     }
 }
 
+/// Scan individual files in `dir` that match `predicate`, adding each as a separate item.
+/// Used for directories that must not be deleted wholesale (e.g. thumbnail cache).
+#[cfg(windows)]
+fn scan_files_matching<F>(
+    items: &mut Vec<CleanupItem>,
+    dir: &Path,
+    category: &str,
+    desc: &str,
+    predicate: F,
+) where
+    F: Fn(&str) -> bool,
+{
+    if !dir.exists() { return; }
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                let name = p.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                if predicate(&name) {
+                    paths.push(p);
+                }
+            }
+        }
+        for p in paths {
+            if let Ok(size) = p.metadata().map(|m| m.len()) {
+                if size > 0 {
+                    items.push(CleanupItem {
+                        path: p.to_string_lossy().to_string(),
+                        size_bytes: size,
+                        category: category.to_string(),
+                        description: desc.to_string(),
+                    });
+                }
+            }
+        }
+    }
+}
+
 fn dir_size(path: &Path) -> u64 {
     let entries: Vec<_> = std::fs::read_dir(path)
         .map(|rd| rd.flatten().collect())
@@ -97,6 +149,15 @@ pub async fn run_cleanup(state: tauri::State<'_, AppState>, paths: Vec<String>) 
     for p in &paths {
         let path = PathBuf::from(p);
         if !path.exists() { continue; }
+        // Individual file (e.g. thumbcache_*.db)
+        if path.is_file() {
+            let size = path.metadata().map(|m| m.len()).unwrap_or(0);
+            if std::fs::remove_file(&path).is_ok() {
+                freed += size;
+            }
+            continue;
+        }
+        // Directory — delete its contents, not the directory itself
         if let Ok(entries) = std::fs::read_dir(&path) {
             for entry in entries.flatten() {
                 let size = if entry.metadata().map(|m| m.is_dir()).unwrap_or(false) {

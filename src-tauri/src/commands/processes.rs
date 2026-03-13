@@ -80,47 +80,58 @@ pub async fn toggle_game_mode(activate: bool) -> Result<bool, String> {
 }
 
 fn toggle_game_mode_sync(activate: bool) -> Result<Vec<String>, String> {
-    let mut affected = Vec::new();
-
     // Apps to suspend for maximum FPS / performance
     let targets = ["chrome", "msedge", "spotify", "discord", "teams", "adobe",
                    "onedrive", "searchindexer", "widgets", "cortana"];
 
+    // Scan processes ONCE — no repeated polling loop
     let mut sys = System::new();
     sys.refresh_all();
 
-    for process in sys.processes().values() {
-        let name = process.name().to_string_lossy().to_lowercase();
-        if targets.iter().any(|t| name.contains(t)) {
-            let pid = process.pid().as_u32();
-            let display = process.name().to_string_lossy().to_string();
+    // Collect all matching (pid, display_name) pairs in one pass
+    let matching: Vec<(u32, String)> = sys.processes().values()
+        .filter(|p| {
+            let name = p.name().to_string_lossy().to_lowercase();
+            targets.iter().any(|t| name.contains(t))
+        })
+        .map(|p| (p.pid().as_u32(), p.name().to_string_lossy().to_string()))
+        .collect();
 
-            #[cfg(windows)]
-            {
-                let cmd = if activate { "Suspend-Process" } else { "Resume-Process" };
-                let script = format!(
-                    "{} -Id {} -ErrorAction SilentlyContinue",
-                    cmd, pid
-                );
-                let out = StdCommand::new("powershell")
-                    .args(["-NoProfile", "-Command", &script])
-                    .creation_flags(0x0800_0000)
-                    .output();
-                if let Ok(o) = out {
-                    if o.status.success() {
-                        affected.push(format!("{cmd}: {display} (PID {pid})"));
-                    }
-                }
-            }
+    let mut affected = Vec::new();
+    if matching.is_empty() {
+        return Ok(affected);
+    }
 
-            #[cfg(not(windows))]
-            {
-                let signal = if activate { "STOP" } else { "CONT" };
-                let _ = std::process::Command::new("kill")
-                    .args([&format!("-{signal}"), &pid.to_string()])
-                    .output();
-                affected.push(format!("{signal}: {display} (PID {pid})"));
+    #[cfg(windows)]
+    {
+        // Single PowerShell invocation for ALL matched processes.
+        // This eliminates the per-process startup cost (previously N × ~500 ms).
+        let pid_array: Vec<String> = matching.iter().map(|(pid, _)| pid.to_string()).collect();
+        let pid_list = pid_array.join(",");
+        let cmd = if activate { "Suspend-Process" } else { "Resume-Process" };
+        let script = format!(
+            "$pids=@({}); $pids | ForEach-Object {{ {cmd} -Id $_ -ErrorAction SilentlyContinue }}",
+            pid_list
+        );
+        let result = StdCommand::new("powershell")
+            .args(["-NoProfile", "-Command", &script])
+            .creation_flags(0x0800_0000)
+            .output();
+        if result.is_ok() {
+            for (pid, display) in &matching {
+                affected.push(format!("{cmd}: {display} (PID {pid})"));
             }
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        let signal = if activate { "STOP" } else { "CONT" };
+        for (pid, display) in &matching {
+            let _ = std::process::Command::new("kill")
+                .args([&format!("-{signal}"), &pid.to_string()])
+                .output();
+            affected.push(format!("{signal}: {display} (PID {pid})"));
         }
     }
 

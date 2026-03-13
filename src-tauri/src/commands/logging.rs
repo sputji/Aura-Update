@@ -3,6 +3,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::commands::config::AppState;
 
 /// Global log file handle — write-only, flushed after each entry.
@@ -12,6 +15,7 @@ static LOG_FILE: Mutex<Option<fs::File>> = Mutex::new(None);
 /// - Creates a `logs/` directory in `data_dir`
 /// - Opens a new log file named `aura_update_YYYY-MM-DD.log`
 /// - Purges log files older than the 3 most recent
+/// - Writes a system-identification header for crash diagnostics
 pub fn init_logging(data_dir: &Path) {
     let logs_dir = data_dir.join("logs");
     fs::create_dir_all(&logs_dir).ok();
@@ -30,12 +34,68 @@ pub fn init_logging(data_dir: &Path) {
     {
         Ok(file) => {
             *LOG_FILE.lock().unwrap() = Some(file);
-            log_info(&format!("=== Aura Update started — {} ===", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+            write_system_dump_header();
         }
         Err(e) => {
             eprintln!("[logging] Failed to open log file: {}", e);
         }
     }
+}
+
+/// Write a structured system identification block at the top of each log session.
+/// This allows crash reports to carry full hardware context automatically.
+fn write_system_dump_header() {
+    use sysinfo::System;
+
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    let mut sys = System::new();
+    sys.refresh_memory();
+    sys.refresh_cpu_list(sysinfo::CpuRefreshKind::everything());
+
+    let os = format!(
+        "{} ({})",
+        System::long_os_version().unwrap_or_else(|| std::env::consts::OS.to_string()),
+        System::kernel_version().unwrap_or_default()
+    );
+
+    let cpu_count = sys.cpus().len();
+    let cpu = sys
+        .cpus()
+        .first()
+        .map(|c| format!("{} ({} Threads)", c.brand().trim(), cpu_count))
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    let ram_gb = sys.total_memory() as f64 / (1024.0 * 1024.0 * 1024.0);
+
+    let is_admin = {
+        #[cfg(windows)]
+        {
+            std::process::Command::new("net")
+                .args(["session"])
+                .creation_flags(0x0800_0000)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        }
+        #[cfg(unix)]
+        {
+            std::process::Command::new("id")
+                .arg("-u")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "0")
+                .unwrap_or(false)
+        }
+    };
+
+    let version = env!("CARGO_PKG_VERSION");
+
+    log_info(&format!("=== Aura Update started — {} ===", now));
+    log_info(&format!("OS: {}", os));
+    log_info(&format!("CPU: {}", cpu));
+    log_info(&format!("RAM: {:.1} GB Total", ram_gb));
+    log_info(&format!("App Version: {} (Admin Mode: {})", version, is_admin));
+    log_info("=================================================");
 }
 
 /// Purge old log files, keeping only the `keep` most recent.

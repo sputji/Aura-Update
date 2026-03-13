@@ -29,6 +29,11 @@ fn clean_registry_path(raw: &str) -> String {
                 if let Some(resolved) = resolve_missing_exe(&candidate) {
                     return resolved;
                 }
+                // Log broken path for diagnostic purposes (os error 2 = file not found)
+                super::logging::log_warn(&format!(
+                    "Startup path not found (os error 2): {}",
+                    candidate
+                ));
             }
             return candidate;
         }

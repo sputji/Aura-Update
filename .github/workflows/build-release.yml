@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────
-# Aura Update — CI/CD Build Multi-OS
-# Compile et produit les artefacts Windows, macOS, Linux
-# Déclenché sur push tag v* ou manuellement
+# Aura Update v2.2.1 — Script Ultime de Production
+# Build multi-OS + GitHub Release automatique
+# Déclenché : push tag v*  |  bouton manuel
 # ─────────────────────────────────────────────────────────────
-name: Build & Release
+name: "Build & Release"
 
 on:
   push:
@@ -15,11 +15,11 @@ permissions:
   contents: write
 
 env:
-  APP_NAME: aura-update
+  NODE_VERSION: "20"
 
 jobs:
   # ════════════════════════════════════════════════════════════
-  # Windows x64 — MSI + NSIS + Portable
+  # Windows x64 — MSI + NSIS
   # ════════════════════════════════════════════════════════════
   build-windows:
     runs-on: windows-latest
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -40,7 +40,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Build Tauri (Windows)
         run: npx tauri build
@@ -49,13 +49,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
+          retention-days: 5
           path: |
-            src-tauri/target/release/aura-update.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*setup*.exe
 
   # ════════════════════════════════════════════════════════════
-  # macOS Universal (x86_64 + arm64)
+  # macOS Universal (arm64 + x86_64)
   # ════════════════════════════════════════════════════════════
   build-macos:
     runs-on: macos-latest
@@ -65,7 +65,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -78,7 +78,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Build Tauri (macOS Universal)
         run: npx tauri build --target universal-apple-darwin
@@ -87,8 +87,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
+          retention-days: 5
           path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
 
   # ════════════════════════════════════════════════════════════
@@ -112,7 +112,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -123,7 +123,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Build Tauri (Linux)
         run: npx tauri build
@@ -132,34 +132,41 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
+          retention-days: 5
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
 
   # ════════════════════════════════════════════════════════════
-  # Release — Publie les artefacts sur GitHub Releases
+  # Release — Publie tout sur GitHub Releases
   # ════════════════════════════════════════════════════════════
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-          path: artifacts
+          path: dist
 
-      - name: Create Release
+      - name: List artifacts
+        run: find dist -type f | head -30
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          name: "Aura Update ${{ github.ref_name }}"
+          draft: false
           generate_release_notes: true
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.dmg
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.AppImage
+            dist/**/*.exe
+            dist/**/*.msi
+            dist/**/*.dmg
+            dist/**/*.deb
+            dist/**/*.rpm
+            dist/**/*.AppImage

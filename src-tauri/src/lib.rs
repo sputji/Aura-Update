@@ -8,27 +8,31 @@ use tauri::menu::{Menu, MenuItem};
 
 /// Entry point for Aura Update desktop application (Tauri 2).
 pub fn run() {
-    // Anti-bug "Single Instance" lors du passage en mode Admin
     let args: Vec<String> = std::env::args().collect();
-    if args.contains(&"--admin-relaunch".to_string()) {
-        // On laisse 1.5s à l'ancienne instance pour disparaître et libérer le verrou
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+    let is_admin_relaunch = args.contains(&"--admin-relaunch".to_string());
+
+    if is_admin_relaunch {
+        std::thread::sleep(std::time::Duration::from_millis(500));
     }
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--auto-start"])))
-        .plugin(
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--auto-start"])));
+
+    // On n'active l'instance unique QUE si ce n'est pas un redémarrage Admin
+    if !is_admin_relaunch {
+        builder = builder.plugin(
             tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                // Another instance tried to launch — focus the existing window
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
                     let _ = w.unminimize();
                     let _ = w.set_focus();
                 }
             })
-        )
-        .setup(|app| {
+        );
+    }
+
+    builder.setup(|app| {
             let data_dir = get_portable_dir();
             let config = load_config(&data_dir);
 
@@ -186,6 +190,7 @@ pub fn run() {
             commands::health::get_system_vitals,
             commands::health::get_vitals,
             commands::health::get_system_info,
+            commands::health::get_system_specs,
             // ── Cooling ──────────────────────────────────────
             commands::cooling::set_fan_boost,
             // ── Snapshot ─────────────────────────────────────

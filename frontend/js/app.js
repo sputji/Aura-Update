@@ -196,35 +196,18 @@ function setTheme(theme) {
 }
 
 /* ─── Health Score ─────────────────────────────────────────── */
-const CIRCLE_CIRCUMFERENCE = 326.73;
-
 function renderHealthScore(hs) {
     state.health = hs;
-    const pct = hs.total / 100;
-    const offset = CIRCLE_CIRCUMFERENCE * (1 - pct);
-    const arc = $('#healthArc');
-    arc.style.strokeDashoffset = offset;
 
-    // Color coding
-    if (hs.total >= 80) arc.style.stroke = 'var(--success)';
-    else if (hs.total >= 50) arc.style.stroke = 'var(--warning)';
-    else arc.style.stroke = 'var(--danger)';
+    const scoreUpdates = $('#scoreUpdates');
+    const scoreDisk = $('#scoreDisk');
+    const scoreStartup = $('#scoreStartup');
+    const scoreTemp = $('#scoreTemp');
 
-    $('#healthValue').textContent = hs.total + '%';
-    $('#hbUpdates').textContent = `${t('hb_updates')} ${hs.update_score}/40 (${hs.pending_updates})`;
-    $('#hbDisk').textContent = `${t('hb_disk')} ${hs.disk_score}/20 (${hs.disk_free_gb} GB)`;
-    $('#hbStartup').textContent = `${t('hb_startup')} ${hs.startup_score}/20 (${hs.startup_count})`;
-    $('#hbTemp').textContent = `${t('hb_temp')} ${hs.temp_score}/20 (${hs.temp_size_mb} MB)`;
-
-    // Colored progress bars
-    const barUpdates = $('#hbBarUpdates');
-    const barDisk = $('#hbBarDisk');
-    const barStartup = $('#hbBarStartup');
-    const barTemp = $('#hbBarTemp');
-    if (barUpdates) barUpdates.style.width = ((hs.update_score / 40) * 100) + '%';
-    if (barDisk) barDisk.style.width = ((hs.disk_score / 20) * 100) + '%';
-    if (barStartup) barStartup.style.width = ((hs.startup_score / 20) * 100) + '%';
-    if (barTemp) barTemp.style.width = ((hs.temp_score / 20) * 100) + '%';
+    if (scoreUpdates) scoreUpdates.textContent = `${hs.update_score}/40`;
+    if (scoreDisk) scoreDisk.textContent = `${hs.disk_score}/20`;
+    if (scoreStartup) scoreStartup.textContent = `${hs.startup_score}/20`;
+    if (scoreTemp) scoreTemp.textContent = `${hs.temp_score}/20`;
 }
 
 async function refreshHealth() {
@@ -236,26 +219,21 @@ async function refreshHealth() {
 
 /// Apply vitals data to the dashboard UI.
 function displayVitals(v) {
-    const cpuEl = $('#vitalCpuTemp');
-    if (v.cpu_temp != null) {
-        cpuEl.textContent = v.cpu_temp.toFixed(0) + '°C';
-        cpuEl.className = 'vital-value ' + tempClass(v.cpu_temp);
-    } else {
-        cpuEl.textContent = t('vital_na');
+    const cpuEl = $('#valCpuTemp');
+    if (cpuEl) {
+        if (v.cpu_temp != null) {
+            cpuEl.textContent = v.cpu_temp.toFixed(0) + '°C';
+        } else {
+            cpuEl.textContent = t('vital_na');
+        }
     }
-    const gpuEl = $('#vitalGpuTemp');
-    if (v.gpu_temp != null) {
-        gpuEl.textContent = v.gpu_temp.toFixed(0) + '°C';
-        gpuEl.className = 'vital-value ' + tempClass(v.gpu_temp);
-    } else {
-        gpuEl.textContent = t('vital_na');
-    }
-    if (v.battery_percent != null) {
-        $('#vitalBattPct').textContent = v.battery_percent + '%';
-        $('#vitalBattIcon').textContent = batteryIcon(v);
-    } else {
-        const battItem = $('#vitalBattery');
-        if (battItem) battItem.style.display = 'none';
+    const gpuEl = $('#valGpuTemp');
+    if (gpuEl) {
+        if (v.gpu_temp != null) {
+            gpuEl.textContent = v.gpu_temp.toFixed(0) + '°C';
+        } else {
+            gpuEl.textContent = t('vital_na');
+        }
     }
 }
 
@@ -1401,36 +1379,6 @@ function bindEvents() {
         await loadTranslations(next);
     });
 
-    // Admin
-    $('#btnElevate').addEventListener('click', async () => {
-        try {
-            // 1. On affiche l'écran d'attente IMMÉDIATEMENT avant de lancer la demande
-            const overlay = document.createElement('div');
-            overlay.style.position = 'fixed';
-            overlay.style.inset = '0';
-            overlay.style.backgroundColor = '#000';
-            overlay.style.color = '#fff';
-            overlay.style.display = 'flex';
-            overlay.style.flexDirection = 'column';
-            overlay.style.alignItems = 'center';
-            overlay.style.justifyContent = 'center';
-            overlay.style.zIndex = '99999';
-            overlay.innerHTML = `
-                <div style="font-size: 3rem; margin-bottom: 20px;">🛡️</div>
-                <div style="font-size: 1.3rem; font-weight: bold;">Redémarrage en mode Administrateur...</div>
-                <div style="margin-top: 15px; font-size: 0.9rem; color: #aaa;">Veuillez cliquer sur "Oui" dans la fenêtre Windows (UAC).</div>
-            `;
-            document.body.appendChild(overlay);
-
-            // 2. On lance l'élévation côté Rust.
-            // NE PAS ajouter de process.exit() ici. Le Rust fermera l'appli tout seul après 2 secondes.
-            await invoke('elevate');
-        } catch (e) {
-            // 3. Si l'utilisateur clique sur "Non" à la demande Windows, on recharge l'application
-            window.location.reload();
-        }
-    });
-
     // Auto-Pilot
     $('#btnAutoPilot').addEventListener('click', runAutoPilot);
 
@@ -1704,29 +1652,25 @@ function applyHardwareDetection(vitals) {
     }
 }
 
-/* ─── System Info Badges ───────────────────────────────────── */
-async function loadSystemInfoBadges() {
+/* ─── System Specs (Dashboard Premium) ─────────────────────── */
+async function loadSystemSpecs() {
     try {
-        const info = await invoke('get_system_info');
-        const osEl  = $('#sysBadgeOsVal');
-        const cpuEl = $('#sysBadgeCpuVal');
-        const gpuEl = $('#sysBadgeGpuVal');
-        const ramEl = $('#sysBadgeRamVal');
+        const specs = await invoke('get_system_specs');
 
-        if (osEl && info.os)   osEl.textContent  = info.os;
-        if (cpuEl && info.cpu) cpuEl.textContent = info.cpu;
-        if (ramEl) {
-            const used  = info.ram_used_gb.toFixed(1);
-            const total = info.ram_total_gb.toFixed(1);
-            ramEl.textContent = `${used} / ${total} GB`;
-        }
-        if (gpuEl && info.gpu) {
-            gpuEl.textContent = info.gpu;
-            const gpuBadge = $('#sysBadgeGpu');
-            if (gpuBadge) gpuBadge.classList.remove('hidden');
-        }
+        // Nettoyage intelligent des noms
+        const cleanCpu = specs.cpu
+            .replace(/Intel\(R\) Core\(TM\) /g, '')
+            .replace(/ CPU @.*/g, '')
+            .replace(/AMD Ryzen \d /g, 'Ryzen ');
+
+        const cleanGpu = specs.gpu.replace(/NVIDIA GeForce /g, '');
+
+        $('#specOs').textContent = specs.os;
+        $('#specCpu').textContent = cleanCpu;
+        $('#specGpu').textContent = cleanGpu;
+        $('#specRam').textContent = specs.ram;
     } catch (e) {
-        console.warn('System info badges error', e);
+        console.error('Specs Error:', e);
     }
 }
 
@@ -1947,7 +1891,7 @@ async function init() {
         }
 
         // System info badges (non-blocking — runs after main scan)
-        loadSystemInfoBadges();
+        loadSystemSpecs();
 
         splashStatus(t('ready'));
 

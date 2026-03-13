@@ -486,6 +486,41 @@ pub fn get_system_info() -> SystemInfo {
     }
 }
 
+// ── System Specs Command ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SystemSpecs {
+    pub os: String,
+    pub cpu: String,
+    pub gpu: String,
+    pub ram: String,
+}
+
+#[tauri::command]
+pub fn get_system_specs() -> SystemSpecs {
+    use sysinfo::System;
+
+    let mut sys = System::new();
+    sys.refresh_memory();
+    sys.refresh_cpu_list(sysinfo::CpuRefreshKind::everything());
+
+    let os = format!(
+        "{} {}",
+        System::name().unwrap_or_default(),
+        System::os_version().unwrap_or_default()
+    ).trim().to_string();
+
+    let cpu = sys.cpus().first()
+        .map(|c| c.brand().trim().to_string())
+        .unwrap_or_else(|| "CPU Inconnu".into());
+
+    let ram = format!("{} GB", sys.total_memory() / 1024 / 1024 / 1024);
+
+    let gpu = detect_gpu_name();
+
+    SystemSpecs { os, cpu, gpu, ram }
+}
+
 /// Best-effort GPU name detection. Returns an empty string when unavailable.
 fn detect_gpu_name() -> String {
     #[cfg(target_os = "windows")]

@@ -58,11 +58,10 @@
         </div>
     </header>
 
-    <!-- ===== ADMIN BANNER ===== -->
+    <!-- ===== ADMIN BANNER (auto-elevate au démarrage, bouton supprimé) ===== -->
     <div id="adminBanner" class="banner banner-warning hidden">
         <span class="banner-icon">🛡️</span>
         <span id="adminBannerText" data-i18n="privileges_required">Privileges required</span>
-        <button id="btnElevate" class="btn-sm btn-warning" data-i18n="btn_elevate">Elevate</button>
     </div>
 
     <!-- ===== MAIN CONTENT ===== -->
@@ -70,91 +69,48 @@
 
         <!-- ── Health Score ── -->
         <section id="healthSection" class="health-section">
-            <div class="health-circle-wrap">
-                <svg class="health-circle" viewBox="0 0 120 120">
-                    <defs>
-                        <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:var(--gradient-start)" />
-                            <stop offset="100%" style="stop-color:var(--gradient-end)" />
-                        </linearGradient>
-                        <filter id="healthGlow">
-                            <feGaussianBlur stdDeviation="3" result="blur" />
-                            <feMerge>
-                                <feMergeNode in="blur" />
-                                <feMergeNode in="SourceGraphic" />
-                            </feMerge>
-                        </filter>
-                    </defs>
-                    <circle class="health-bg" cx="60" cy="60" r="52" />
-                    <circle id="healthArc" class="health-arc" cx="60" cy="60" r="52"
-                            stroke-dasharray="326.73" stroke-dashoffset="326.73"
-                            filter="url(#healthGlow)" />
-                </svg>
-                <div class="health-score-text">
-                    <span id="healthValue" class="health-value">—</span>
-                    <span class="health-label" data-i18n="health_label">Health</span>
-                </div>
+            <div class="system-monitor-bar" id="sysSpecs">
+                <div class="spec-item"><span class="spec-label">OS</span><span id="specOs">...</span></div>
+                <div class="spec-item"><span class="spec-label">CPU</span><span id="specCpu">...</span></div>
+                <div class="spec-item"><span class="spec-label">GPU</span><span id="specGpu">...</span></div>
+                <div class="spec-item"><span class="spec-label">RAM</span><span id="specRam">...</span></div>
             </div>
-            <div class="health-breakdown">
-                <div class="hb-item">
-                    <span class="hb-icon">🔄</span> <span id="hbUpdates">—</span>
-                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-updates" id="hbBarUpdates"></div></div>
+
+            <div class="health-grid">
+                <div class="score-card updates">
+                    <span class="sc-icon">🔄</span>
+                    <div class="sc-info">
+                        <span id="scoreUpdates">--/40</span>
+                        <small data-i18n="hb_updates">Mises à jour</small>
+                    </div>
                 </div>
-                <div class="hb-item">
-                    <span class="hb-icon">💾</span> <span id="hbDisk">—</span>
-                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-disk" id="hbBarDisk"></div></div>
+                <div class="score-card disk">
+                    <span class="sc-icon">💾</span>
+                    <div class="sc-info">
+                        <span id="scoreDisk">--/20</span>
+                        <small data-i18n="hb_disk">Disque</small>
+                    </div>
                 </div>
-                <div class="hb-item">
-                    <span class="hb-icon">🚀</span> <span id="hbStartup">—</span>
-                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-startup" id="hbBarStartup"></div></div>
+                <div class="score-card startup">
+                    <span class="sc-icon">🚀</span>
+                    <div class="sc-info">
+                        <span id="scoreStartup">--/20</span>
+                        <small data-i18n="hb_startup">Démarrage</small>
+                    </div>
                 </div>
-                <div class="hb-item">
-                    <span class="hb-icon">🗑️</span> <span id="hbTemp">—</span>
-                    <div class="hb-bar-wrap"><div class="hb-bar hb-bar-temp" id="hbBarTemp"></div></div>
+                <div class="score-card temp">
+                    <span class="sc-icon">🗑️</span>
+                    <div class="sc-info">
+                        <span id="scoreTemp">--/20</span>
+                        <small data-i18n="hb_temp">Temp.</small>
+                    </div>
                 </div>
             </div>
 
-            <!-- ── System Info Badges ── -->
-            <div class="sys-badges" id="sysBadges">
-                <div class="sys-badge" id="sysBadgeOs">
-                    <span class="sys-badge-icon">💻</span>
-                    <span class="sys-badge-label" data-i18n="sys_badge_os">Système</span>
-                    <span class="sys-badge-value" id="sysBadgeOsVal">—</span>
-                </div>
-                <div class="sys-badge" id="sysBadgeCpu">
-                    <span class="sys-badge-icon">⚙️</span>
-                    <span class="sys-badge-label" data-i18n="sys_badge_cpu">Processeur</span>
-                    <span class="sys-badge-value" id="sysBadgeCpuVal">—</span>
-                </div>
-                <div class="sys-badge hidden" id="sysBadgeGpu">
-                    <span class="sys-badge-icon">🎮</span>
-                    <span class="sys-badge-label" data-i18n="sys_badge_gpu">Carte graphique</span>
-                    <span class="sys-badge-value" id="sysBadgeGpuVal">—</span>
-                </div>
-                <div class="sys-badge" id="sysBadgeRam">
-                    <span class="sys-badge-icon">🧠</span>
-                    <span class="sys-badge-label" data-i18n="sys_badge_ram">Mémoire</span>
-                    <span class="sys-badge-value" id="sysBadgeRamVal">—</span>
-                </div>
-            </div>
-
-            <!-- ── System Vitals ── -->
-            <div class="vitals-bar" id="vitalsBar">
-                <div class="vital-item" id="vitalCpu">
-                    <span class="vital-icon">🌡️</span>
-                    <span class="vital-label">CPU</span>
-                    <span class="vital-value" id="vitalCpuTemp">—</span>
-                </div>
-                <div class="vital-item" id="vitalGpu">
-                    <span class="vital-icon">🎮</span>
-                    <span class="vital-label">GPU</span>
-                    <span class="vital-value" id="vitalGpuTemp">—</span>
-                </div>
-                <div class="vital-item" id="vitalBattery">
-                    <span class="vital-icon" id="vitalBattIcon">🔋</span>
-                    <span class="vital-label" data-i18n="vital_battery">Batterie</span>
-                    <span class="vital-value" id="vitalBattPct">—</span>
-                </div>
+            <div class="vitals-row">
+                <div class="vital-mini">🌡️ CPU: <strong id="valCpuTemp">--°C</strong></div>
+                <div class="vital-mini">🎮 GPU: <strong id="valGpuTemp">--°C</strong></div>
+                <div class="vital-mini" id="coolBoostStatus">❄️ Cool Boost: <span data-i18n="ready">Prêt</span></div>
             </div>
 
             <!-- ── Cool Boost ── -->

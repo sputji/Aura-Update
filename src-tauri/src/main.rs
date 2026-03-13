@@ -1,24 +1,40 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    // Crash reporter — save panic context to disk for next-launch detection.
-    // With panic="abort" (release), the hook executes then the process aborts.
-    let exe = std::env::current_exe().unwrap_or_default();
-    let data_dir = exe
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .join("aura_data");
+    // 1. FIX CRITIQUE : Force le dossier de travail sur celui de l'exécutable
+    // Empêche le bug ERR_CONNECTION_REFUSED en mode Admin
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let _ = std::env::set_current_dir(exe_dir);
+        }
+    }
 
-    std::panic::set_hook(Box::new(move |info| {
-        let crash_info = info.to_string().replace('\\', "\\\\").replace('"', "\\\"");
-        let os = std::env::consts::OS;
-        let json = format!(
-            "{{\"panic\":\"{}\",\"os\":\"{}\"}}",
-            crash_info, os
-        );
-        let _ = std::fs::create_dir_all(&data_dir);
-        let _ = std::fs::write(data_dir.join("crash_report.json"), json);
-    }));
+    // 2. FORCER L'ADMIN DÈS LE DÉMARRAGE (Uniquement Windows)
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        let is_admin = std::process::Command::new("net")
+            .args(["session"])
+            .creation_flags(0x0800_0000)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if !is_admin {
+            if let Ok(exe) = std::env::current_exe() {
+                let script = format!(
+                    "Start-Process -FilePath '{}' -WorkingDirectory '{}' -Verb RunAs",
+                    exe.display(),
+                    exe.parent().unwrap().display()
+                );
+                let _ = std::process::Command::new("powershell.exe")
+                    .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+                    .spawn();
+                std::process::exit(0);
+            }
+        }
+    }
 
     aura_update_lib::run();
 }

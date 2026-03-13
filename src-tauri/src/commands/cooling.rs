@@ -109,12 +109,8 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
                 vendor_success = true;
                 break;
             }
-            Ok(o) => {
-                let err = String::from_utf8_lossy(&o.stderr);
-                // Use char-based truncation to avoid a byte-boundary panic on
-                // multi-byte characters (e.g. accented French output from PowerShell).
-                let truncated_err: String = err.chars().take(80).collect();
-                log.push(format!("[{}] SKIP: {}", vendor_name, truncated_err.trim()));
+            Ok(_) => {
+                log.push(format!("[{}] SKIP: Not supported on this model", vendor_name));
             }
             Err(e) => {
                 log.push(format!("[{}] ERROR: {}", vendor_name, e));

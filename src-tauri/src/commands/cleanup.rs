@@ -265,7 +265,7 @@ pub async fn scan_os_residues() -> Result<CleanupReport, String> {
 // ── Clean OS residues ────────────────────────────────────────────────
 #[tauri::command]
 pub async fn clean_os_residues(state: tauri::State<'_, AppState>, residues: Vec<String>) -> Result<String, String> {
-    let mut results = Vec::new();
+    let mut results: Vec<String> = Vec::new();
 
     for r in &residues {
         match r.as_str() {

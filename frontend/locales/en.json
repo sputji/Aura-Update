@@ -245,5 +245,27 @@
     "sys_badge_os": "System",
     "sys_badge_cpu": "Processor",
     "sys_badge_gpu": "Graphics",
-    "sys_badge_ram": "Memory"
+    "sys_badge_ram": "Memory",
+
+    "sched_monthly": "Monthly",
+    "settings_auto_clean": "Auto Cleanup",
+    "settings_auto_clean_desc": "Schedule automatic disk cleanup.",
+
+    "browser_granular_title": "Browser Cleanup",
+    "filter_cache": "Cache",
+    "filter_history": "History",
+    "filter_cookies": "Cookies",
+    "filter_sessions": "Sessions",
+    "btn_scan_browsers_granular": "Scan",
+    "btn_clean_browsers_granular": "Clean",
+    "browser_no_selection": "Select at least one browser",
+    "browser_nothing_found": "Nothing found",
+
+    "btn_local_backup": "Local Backup",
+    "backup_dir_set": "Backup directory set",
+
+    "temp_alert_title": "Large Temporary Files",
+    "temp_alert_desc": "Your temporary files exceed 1 GB. Cleanup is recommended.",
+    "btn_clean_now": "Clean Now",
+    "btn_dismiss": "Later"
 }

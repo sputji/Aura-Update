@@ -83,6 +83,41 @@ fn scan_dir(items: &mut Vec<CleanupItem>, dir: &Path, category: &str, desc: &str
     }
 }
 
+/// Quick temp size check — returns total bytes in temp directories.
+/// Used for the > 1 GB popup alert at startup.
+#[tauri::command]
+pub fn check_temp_size() -> u64 {
+    let mut total: u64 = 0;
+
+    #[cfg(windows)]
+    {
+        total += dir_size_safe(&std::env::temp_dir());
+        if let Some(windir) = std::env::var_os("SystemRoot") {
+            total += dir_size_safe(&PathBuf::from(&windir).join("Temp"));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        total += dir_size_safe(&PathBuf::from("/tmp"));
+        if let Some(home) = dirs::home_dir() {
+            total += dir_size_safe(&home.join("Library/Caches"));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        total += dir_size_safe(&PathBuf::from("/tmp"));
+        total += dir_size_safe(&PathBuf::from("/var/tmp"));
+    }
+
+    total
+}
+
+fn dir_size_safe(path: &Path) -> u64 {
+    if path.exists() { dir_size(path) } else { 0 }
+}
+
 /// Scan individual files in `dir` that match `predicate`, adding each as a separate item.
 /// Used for directories that must not be deleted wholesale (e.g. thumbnail cache).
 #[cfg(windows)]
@@ -345,6 +380,219 @@ fn collect_browser_items(items: &mut Vec<CleanupItem>, browsers: &[(PathBuf, &st
     }
 }
 
+/// Filter spec for granular browser cleanup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserCleanupFilter {
+    pub browser: String,    // "chrome", "edge", "firefox", "brave", "opera", "opera_gx"
+    pub cache: bool,
+    pub history: bool,
+    pub cookies: bool,
+    pub sessions: bool,
+}
+
+/// Scan browser data with granular filters (cache, history, cookies, sessions).
+#[tauri::command]
+pub async fn scan_browser_granular(filters: Vec<BrowserCleanupFilter>) -> Result<CleanupReport, String> {
+    let mut items = Vec::new();
+
+    for filter in &filters {
+        let paths = get_browser_data_paths(&filter.browser, filter.cache, filter.history, filter.cookies, filter.sessions);
+        for (path, desc) in paths {
+            if path.exists() {
+                let size = if path.is_file() {
+                    path.metadata().map(|m| m.len()).unwrap_or(0)
+                } else {
+                    dir_size(&path)
+                };
+                if size > 0 {
+                    items.push(CleanupItem {
+                        path: path.to_string_lossy().to_string(),
+                        size_bytes: size,
+                        category: format!("browser_{}", filter.browser),
+                        description: desc,
+                    });
+                }
+            }
+        }
+    }
+
+    let total: u64 = items.iter().map(|i| i.size_bytes).sum();
+    Ok(CleanupReport { items, total_bytes: total })
+}
+
+fn get_browser_data_paths(browser: &str, cache: bool, history: bool, cookies: bool, sessions: bool) -> Vec<(PathBuf, String)> {
+    let mut paths = Vec::new();
+
+    #[cfg(windows)]
+    {
+        let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_default();
+        let roaming = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default();
+
+        match browser {
+            "chrome" => {
+                let base = local.join("Google\\Chrome\\User Data\\Default");
+                if cache   { paths.push((base.join("Cache"), "Chrome — Cache".into())); paths.push((base.join("Code Cache"), "Chrome — Code Cache".into())); }
+                if history { paths.push((base.join("History"), "Chrome — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Chrome — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Chrome — Sessions".into())); }
+            }
+            "edge" => {
+                let base = local.join("Microsoft\\Edge\\User Data\\Default");
+                if cache   { paths.push((base.join("Cache"), "Edge — Cache".into())); paths.push((base.join("Code Cache"), "Edge — Code Cache".into())); }
+                if history { paths.push((base.join("History"), "Edge — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Edge — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Edge — Sessions".into())); }
+            }
+            "firefox" => {
+                let profiles = roaming.join("Mozilla\\Firefox\\Profiles");
+                if profiles.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&profiles) {
+                        for entry in entries.flatten() {
+                            let p = entry.path();
+                            if p.is_dir() {
+                                let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                if cache   { paths.push((p.join("cache2"), format!("Firefox ({name}) — Cache"))); }
+                                if history { paths.push((p.join("places.sqlite"), format!("Firefox ({name}) — Historique"))); }
+                                if cookies { paths.push((p.join("cookies.sqlite"), format!("Firefox ({name}) — Cookies"))); }
+                                if sessions { paths.push((p.join("sessionstore-backups"), format!("Firefox ({name}) — Sessions"))); }
+                            }
+                        }
+                    }
+                }
+            }
+            "brave" => {
+                let base = local.join("BraveSoftware\\Brave-Browser\\User Data\\Default");
+                if cache   { paths.push((base.join("Cache"), "Brave — Cache".into())); }
+                if history { paths.push((base.join("History"), "Brave — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Brave — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Brave — Sessions".into())); }
+            }
+            "opera" => {
+                let base = local.join("Opera Software\\Opera Stable");
+                if cache   { paths.push((base.join("Cache"), "Opera — Cache".into())); }
+                if history { paths.push((base.join("History"), "Opera — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Opera — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Opera — Sessions".into())); }
+            }
+            "opera_gx" => {
+                let base = local.join("Opera Software\\Opera GX Stable");
+                if cache   { paths.push((base.join("Cache"), "Opera GX — Cache".into())); }
+                if history { paths.push((base.join("History"), "Opera GX — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Opera GX — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Opera GX — Sessions".into())); }
+            }
+            _ => {}
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        match browser {
+            "chrome" => {
+                let base = home.join("Library/Application Support/Google/Chrome/Default");
+                if cache   { paths.push((home.join("Library/Caches/Google/Chrome/Default/Cache"), "Chrome — Cache".into())); }
+                if history { paths.push((base.join("History"), "Chrome — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Chrome — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Chrome — Sessions".into())); }
+            }
+            "edge" => {
+                let base = home.join("Library/Application Support/Microsoft Edge/Default");
+                if cache   { paths.push((home.join("Library/Caches/com.microsoft.edgemac"), "Edge — Cache".into())); }
+                if history { paths.push((base.join("History"), "Edge — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Edge — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Edge — Sessions".into())); }
+            }
+            "firefox" => {
+                let profiles = home.join("Library/Application Support/Firefox/Profiles");
+                if profiles.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&profiles) {
+                        for entry in entries.flatten() {
+                            let p = entry.path();
+                            if p.is_dir() {
+                                let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                if cache   { paths.push((p.join("cache2"), format!("Firefox ({name}) — Cache"))); }
+                                if history { paths.push((p.join("places.sqlite"), format!("Firefox ({name}) — Historique"))); }
+                                if cookies { paths.push((p.join("cookies.sqlite"), format!("Firefox ({name}) — Cookies"))); }
+                                if sessions { paths.push((p.join("sessionstore-backups"), format!("Firefox ({name}) — Sessions"))); }
+                            }
+                        }
+                    }
+                }
+            }
+            "brave" => {
+                let base = home.join("Library/Application Support/BraveSoftware/Brave-Browser/Default");
+                if cache   { paths.push((home.join("Library/Caches/com.brave.Browser"), "Brave — Cache".into())); }
+                if history { paths.push((base.join("History"), "Brave — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Brave — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Brave — Sessions".into())); }
+            }
+            "opera" => {
+                let base = home.join("Library/Application Support/com.operasoftware.Opera");
+                if cache   { paths.push((home.join("Library/Caches/com.operasoftware.Opera"), "Opera — Cache".into())); }
+                if history { paths.push((base.join("History"), "Opera — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Opera — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Opera — Sessions".into())); }
+            }
+            _ => {}
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        match browser {
+            "chrome" => {
+                let base = home.join(".config/google-chrome/Default");
+                if cache   { paths.push((home.join(".cache/google-chrome/Default/Cache"), "Chrome — Cache".into())); }
+                if history { paths.push((base.join("History"), "Chrome — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Chrome — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Chrome — Sessions".into())); }
+            }
+            "edge" => {
+                let base = home.join(".config/microsoft-edge/Default");
+                if cache   { paths.push((home.join(".cache/microsoft-edge/Default/Cache"), "Edge — Cache".into())); }
+                if history { paths.push((base.join("History"), "Edge — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Edge — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Edge — Sessions".into())); }
+            }
+            "firefox" => {
+                let profiles = home.join(".mozilla/firefox");
+                if profiles.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&profiles) {
+                        for entry in entries.flatten() {
+                            let p = entry.path();
+                            if p.is_dir() && p.to_string_lossy().contains(".default") {
+                                let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                if cache   { paths.push((p.join("cache2"), format!("Firefox ({name}) — Cache"))); }
+                                if history { paths.push((p.join("places.sqlite"), format!("Firefox ({name}) — Historique"))); }
+                                if cookies { paths.push((p.join("cookies.sqlite"), format!("Firefox ({name}) — Cookies"))); }
+                                if sessions { paths.push((p.join("sessionstore-backups"), format!("Firefox ({name}) — Sessions"))); }
+                            }
+                        }
+                    }
+                }
+            }
+            "brave" => {
+                let base = home.join(".config/BraveSoftware/Brave-Browser/Default");
+                if cache   { paths.push((home.join(".cache/BraveSoftware/Brave-Browser/Default/Cache"), "Brave — Cache".into())); }
+                if history { paths.push((base.join("History"), "Brave — Historique".into())); }
+                if cookies { paths.push((base.join("Cookies"), "Brave — Cookies".into())); }
+                if sessions { paths.push((base.join("Sessions"), "Brave — Sessions".into())); }
+            }
+            "opera" => {
+                if cache   { paths.push((home.join(".cache/opera"), "Opera — Cache".into())); }
+                if history { paths.push((home.join(".config/opera/History"), "Opera — Historique".into())); }
+                if cookies { paths.push((home.join(".config/opera/Cookies"), "Opera — Cookies".into())); }
+                if sessions { paths.push((home.join(".config/opera/Sessions"), "Opera — Sessions".into())); }
+            }
+            _ => {}
+        }
+    }
+
+    paths
+}
+
 #[tauri::command]
 pub async fn scan_browser_caches() -> Result<CleanupReport, String> {
     let mut items = Vec::new();
@@ -428,6 +676,32 @@ const BLOATWARE_LIST: &[&str] = &[
     "BytedancePte.Ltd.TikTok",
 ];
 
+/// macOS: known bloatware / preinstalled apps removable from /Applications
+#[cfg(target_os = "macos")]
+const BLOATWARE_MACOS: &[(&str, &str)] = &[
+    ("GarageBand", "GarageBand.app"),
+    ("iMovie", "iMovie.app"),
+    ("Keynote", "Keynote.app"),
+    ("Numbers", "Numbers.app"),
+    ("Pages", "Pages.app"),
+];
+
+/// Linux: known snap/flatpak/apt bloatware
+#[cfg(target_os = "linux")]
+const BLOATWARE_LINUX: &[(&str, &str)] = &[
+    ("gnome-games", "gnome-games"),
+    ("aisleriot", "aisleriot"),
+    ("gnome-mahjongg", "gnome-mahjongg"),
+    ("gnome-mines", "gnome-mines"),
+    ("gnome-sudoku", "gnome-sudoku"),
+    ("thunderbird", "thunderbird"),
+    ("libreoffice-common", "libreoffice-common"),
+    ("rhythmbox", "rhythmbox"),
+    ("totem", "totem"),
+    ("cheese", "cheese"),
+    ("shotwell", "shotwell"),
+];
+
 /// Return the list of known bloatwares with their install status.
 #[tauri::command]
 pub async fn list_bloatwares() -> Result<Vec<BloatwareInfo>, String> {
@@ -468,12 +742,37 @@ pub async fn list_bloatwares() -> Result<Vec<BloatwareInfo>, String> {
 
     #[cfg(not(windows))]
     {
-        for &pkg in BLOATWARE_LIST {
-            result.push(BloatwareInfo {
-                package: pkg.to_string(),
-                label: pkg.split('.').last().unwrap_or(pkg).to_string(),
-                installed: false,
-            });
+        #[cfg(target_os = "macos")]
+        {
+            for &(label, app_name) in BLOATWARE_MACOS {
+                let path = format!("/Applications/{}", app_name);
+                let installed = std::path::Path::new(&path).exists();
+                result.push(BloatwareInfo {
+                    package: app_name.to_string(),
+                    label: label.to_string(),
+                    installed,
+                });
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Check dpkg for installed packages
+            let out = Command::new("dpkg")
+                .args(["--get-selections"])
+                .output()
+                .await;
+            let installed_text = out
+                .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+                .unwrap_or_default();
+            for &(label, pkg) in BLOATWARE_LINUX {
+                let installed = installed_text.lines().any(|l| l.starts_with(pkg) && l.contains("install"));
+                result.push(BloatwareInfo {
+                    package: pkg.to_string(),
+                    label: label.to_string(),
+                    installed,
+                });
+            }
         }
     }
 
@@ -490,22 +789,19 @@ pub struct BloatwareInfo {
 // ── Purge selected bloatwares ────────────────────────────────────────
 #[tauri::command]
 pub async fn purge_bloatwares(selection: Vec<String>) -> Result<String, String> {
+    let mut removed_count = 0;
+
     #[cfg(windows)]
     {
-        // If empty selection, purge all known bloatwares
         let targets: Vec<&str> = if selection.is_empty() {
             BLOATWARE_LIST.to_vec()
         } else {
-            // Only purge packages that are in our known list (security: whitelist)
             selection.iter()
                 .filter(|s| BLOATWARE_LIST.contains(&s.as_str()))
                 .map(|s| s.as_str())
                 .collect()
         };
 
-        let mut removed_count = 0;
-
-        // Batch all removals into a single PowerShell call
         let ps_script: String = targets.iter().map(|pkg| {
             format!("Get-AppxPackage -Name *{}* | Remove-AppxPackage -ErrorAction SilentlyContinue", pkg)
         }).collect::<Vec<_>>().join("; ");
@@ -517,14 +813,61 @@ pub async fn purge_bloatwares(selection: Vec<String>) -> Result<String, String> 
         if out.map(|o| o.status.success()).unwrap_or(false) {
             removed_count = targets.len();
         }
-
-        return Ok(format!("Purge terminée : {} applications supprimées.", removed_count));
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     {
-        Err("La purge des bloatwares est spécifique à Windows.".into())
+        let known: Vec<&str> = BLOATWARE_MACOS.iter().map(|&(_, app)| app).collect();
+        let targets: Vec<&str> = if selection.is_empty() {
+            known.clone()
+        } else {
+            selection.iter()
+                .filter(|s| known.contains(&s.as_str()))
+                .map(|s| s.as_str())
+                .collect()
+        };
+
+        for app_name in &targets {
+            let path = format!("/Applications/{}", app_name);
+            if std::path::Path::new(&path).exists() {
+                let out = Command::new("rm")
+                    .args(["-rf", &path])
+                    .output()
+                    .await;
+                if out.map(|o| o.status.success()).unwrap_or(false) {
+                    removed_count += 1;
+                }
+            }
+        }
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        let known: Vec<&str> = BLOATWARE_LINUX.iter().map(|&(_, pkg)| pkg).collect();
+        let targets: Vec<&str> = if selection.is_empty() {
+            known.clone()
+        } else {
+            selection.iter()
+                .filter(|s| known.contains(&s.as_str()))
+                .map(|s| s.as_str())
+                .collect()
+        };
+
+        if !targets.is_empty() {
+            let mut args = vec!["purge", "-y"];
+            args.extend(targets.iter());
+            let out = Command::new("sudo")
+                .args(["apt-get"])
+                .args(&args)
+                .output()
+                .await;
+            if out.map(|o| o.status.success()).unwrap_or(false) {
+                removed_count = targets.len();
+            }
+        }
+    }
+
+    Ok(format!("Purge terminée : {} applications supprimées.", removed_count))
 }
 
 // ── Disable telemetry services ───────────────────────────────────────

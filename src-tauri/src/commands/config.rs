@@ -51,10 +51,17 @@ pub struct Config {
     /// Close to tray instead of quitting
     #[serde(default)]
     pub close_to_tray: bool,
+    /// Auto-clean scheduler enabled
+    #[serde(default)]
+    pub auto_clean_enabled: bool,
+    /// Auto-clean interval: "disabled", "daily", "weekly", "monthly"
+    #[serde(default = "default_disabled")]
+    pub auto_clean_interval: String,
 }
 
 fn default_true() -> bool { true }
 fn default_startup_mode() -> String { "visible".into() }
+fn default_disabled() -> String { "disabled".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -78,6 +85,8 @@ impl Default for Config {
             telemetry_vscode: true,
             backup_dir: String::new(),
             close_to_tray: false,
+            auto_clean_enabled: false,
+            auto_clean_interval: "disabled".into(),
         }
     }
 }
@@ -146,6 +155,8 @@ pub fn set_config_value(
         "telemetry_vscode" => cfg.telemetry_vscode = value.as_bool().unwrap_or(true),
         "backup_dir" => cfg.backup_dir = value.as_str().unwrap_or("").into(),
         "close_to_tray" => cfg.close_to_tray = value.as_bool().unwrap_or(false),
+        "auto_clean_enabled" => cfg.auto_clean_enabled = value.as_bool().unwrap_or(false),
+        "auto_clean_interval" => cfg.auto_clean_interval = value.as_str().unwrap_or("disabled").into(),
         _ => return Err(format!("Unknown config key: {key}")),
 
     }

@@ -245,5 +245,27 @@
     "sys_badge_os": "Système",
     "sys_badge_cpu": "Processeur",
     "sys_badge_gpu": "Carte graphique",
-    "sys_badge_ram": "Mémoire"
+    "sys_badge_ram": "Mémoire",
+
+    "sched_monthly": "Mensuel",
+    "settings_auto_clean": "Nettoyage auto",
+    "settings_auto_clean_desc": "Planifier un nettoyage automatique du disque.",
+
+    "browser_granular_title": "Nettoyage navigateurs",
+    "filter_cache": "Cache",
+    "filter_history": "Historique",
+    "filter_cookies": "Cookies",
+    "filter_sessions": "Sessions",
+    "btn_scan_browsers_granular": "Scanner",
+    "btn_clean_browsers_granular": "Nettoyer",
+    "browser_no_selection": "Sélectionnez au moins un navigateur",
+    "browser_nothing_found": "Rien trouvé",
+
+    "btn_local_backup": "Backup local",
+    "backup_dir_set": "Dossier de sauvegarde configuré",
+
+    "temp_alert_title": "Fichiers temporaires volumineux",
+    "temp_alert_desc": "Vos fichiers temporaires dépassent 1 Go. Un nettoyage est recommandé.",
+    "btn_clean_now": "Nettoyer maintenant",
+    "btn_dismiss": "Plus tard"
 }

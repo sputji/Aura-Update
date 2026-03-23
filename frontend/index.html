@@ -76,6 +76,19 @@
                 <div class="spec-item"><span class="spec-label">RAM</span><span id="specRam">...</span></div>
             </div>
 
+            <!-- ── Cercle de Santé SVG ── -->
+            <div class="health-circle-container">
+                <svg class="health-circle" viewBox="0 0 120 120" width="160" height="160">
+                    <circle class="health-circle-bg" cx="60" cy="60" r="52" />
+                    <circle class="health-circle-progress" id="healthCircleProgress" cx="60" cy="60" r="52"
+                            stroke-dasharray="0 326.73" stroke-dashoffset="0"
+                            transform="rotate(-90 60 60)" />
+                    <text class="health-circle-score" id="healthCircleScore" x="60" y="55" text-anchor="middle" dominant-baseline="central">--</text>
+                    <text class="health-circle-label" x="60" y="75" text-anchor="middle" data-i18n="health_label">Santé</text>
+                </svg>
+                <div class="health-circle-glow" id="healthCircleGlow"></div>
+            </div>
+
             <div class="health-grid">
                 <div class="score-card updates">
                     <span class="sc-icon">🔄</span>
@@ -212,6 +225,64 @@
                 <h2 class="status-title" data-i18n="cleanup_welcome">Disk Cleanup</h2>
                 <p class="status-desc" data-i18n="cleanup_welcome_desc">Scan to find files to clean.</p>
             </div>
+
+            <!-- ── Granular Browser Cleanup ── -->
+            <div class="browser-granular-section" id="browserGranularSection">
+                <h3 class="section-subtitle">🌐 <span data-i18n="browser_granular_title">Nettoyage navigateurs</span></h3>
+                <div class="browser-granular-grid" id="browserGranularGrid">
+                    <div class="browser-filter-row" data-browser="chrome">
+                        <span class="browser-filter-name">Chrome</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                    <div class="browser-filter-row" data-browser="edge">
+                        <span class="browser-filter-name">Edge</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                    <div class="browser-filter-row" data-browser="firefox">
+                        <span class="browser-filter-name">Firefox</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                    <div class="browser-filter-row" data-browser="brave">
+                        <span class="browser-filter-name">Brave</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                    <div class="browser-filter-row" data-browser="opera">
+                        <span class="browser-filter-name">Opera</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                    <div class="browser-filter-row" data-browser="opera_gx">
+                        <span class="browser-filter-name">Opera GX</span>
+                        <label><input type="checkbox" checked data-filter="cache"> <span data-i18n="filter_cache">Cache</span></label>
+                        <label><input type="checkbox" data-filter="history"> <span data-i18n="filter_history">Historique</span></label>
+                        <label><input type="checkbox" data-filter="cookies"> <span data-i18n="filter_cookies">Cookies</span></label>
+                        <label><input type="checkbox" data-filter="sessions"> <span data-i18n="filter_sessions">Sessions</span></label>
+                    </div>
+                </div>
+                <div class="browser-granular-actions">
+                    <button id="btnScanBrowserGranular" class="btn btn-primary btn-sm">
+                        <span>🔍</span> <span data-i18n="btn_scan_browsers_granular">Scanner</span>
+                    </button>
+                    <button id="btnCleanBrowserGranular" class="btn btn-accent btn-sm hidden">
+                        <span>🧹</span> <span data-i18n="btn_clean_browsers_granular">Nettoyer</span>
+                    </button>
+                </div>
+                <div id="browserGranularResults" class="cleanup-list"></div>
+            </div>
         </section>
 
         <!-- ══ TAB: Startup ══ -->
@@ -299,11 +370,17 @@
                         <span>💾</span>
                         <h3 data-i18n="backups_title">Sauvegardes système</h3>
                         <p class="turbo-desc" data-i18n="backups_desc">Points de restauration créés automatiquement.</p>
+                        <div class="backup-dir-row">
+                            <input type="text" id="backupDirInput" class="input-field" placeholder="System Backups" readonly>
+                            <button id="btnPickBackupDir" class="btn btn-sm btn-secondary" title="Choisir">📁</button>
+                        </div>
                         <div class="backup-actions">
                             <button id="btnLoadBackups" class="btn btn-sm btn-primary" data-i18n="btn_load_backups">Charger</button>
                             <button id="btnCreateSnapshot" class="btn btn-sm btn-accent" data-i18n="btn_create_snapshot">Créer un point</button>
+                            <button id="btnCreateLocalBackup" class="btn btn-sm btn-secondary" data-i18n="btn_local_backup">Backup local</button>
                         </div>
                         <div id="backupsList" class="backups-list"></div>
+                        <div id="localBackupsList" class="backups-list"></div>
                     </div>
                 </div>
 
@@ -346,6 +423,18 @@
                         <button class="btn-option" data-sched="startup" data-i18n="sched_startup">At Startup</button>
                         <button class="btn-option" data-sched="daily" data-i18n="sched_daily">Daily</button>
                         <button class="btn-option" data-sched="weekly" data-i18n="sched_weekly">Weekly</button>
+                        <button class="btn-option" data-sched="monthly" data-i18n="sched_monthly">Monthly</button>
+                    </div>
+                </div>
+                <!-- Auto-Clean Scheduler -->
+                <div class="setting-group" id="autoCleanGroup">
+                    <label data-i18n="settings_auto_clean">Nettoyage automatique</label>
+                    <p class="setting-desc" data-i18n="settings_auto_clean_desc">Planifiez un nettoyage automatique des fichiers temporaires.</p>
+                    <div class="setting-options" id="autoCleanOptions">
+                        <button class="btn-option" data-autoclean="disabled" data-i18n="sched_disabled">Off</button>
+                        <button class="btn-option" data-autoclean="daily" data-i18n="sched_daily">Daily</button>
+                        <button class="btn-option" data-autoclean="weekly" data-i18n="sched_weekly">Weekly</button>
+                        <button class="btn-option" data-autoclean="monthly" data-i18n="sched_monthly">Monthly</button>
                     </div>
                 </div>
                 <!-- Snapshot -->
@@ -521,6 +610,24 @@
                     <button id="btnRestoreCancel" class="btn btn-neutral" data-i18n="btn_decline">Annuler</button>
                     <button id="btnRestoreConfirm" class="btn btn-danger" data-i18n="btn_restore_confirm">Restaurer maintenant</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TEMP FILES ALERT POPUP ===== -->
+    <div id="tempAlertOverlay" class="modal-overlay hidden">
+        <div class="modal mini-modal">
+            <div class="modal-header">
+                <h2>⚠️ <span data-i18n="temp_alert_title">Fichiers temporaires volumineux</span></h2>
+                <button id="btnCloseTempAlert" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p data-i18n="temp_alert_desc">Vos fichiers temporaires dépassent 1 Go. Un nettoyage est recommandé.</p>
+                <p id="tempAlertSize" style="font-size:1.2rem;font-weight:700;color:var(--warning);margin:12px 0;">—</p>
+            </div>
+            <div class="modal-footer">
+                <button id="btnTempAlertClean" class="btn btn-accent" data-i18n="btn_clean_now">Nettoyer maintenant</button>
+                <button id="btnTempAlertDismiss" class="btn btn-secondary" data-i18n="btn_dismiss">Plus tard</button>
             </div>
         </div>
     </div>

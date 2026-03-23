@@ -177,6 +177,8 @@ pub fn run() {
             commands::cleanup::scan_os_residues,
             commands::cleanup::clean_os_residues,
             commands::cleanup::scan_browser_caches,
+            commands::cleanup::scan_browser_granular,
+            commands::cleanup::check_temp_size,
             commands::cleanup::list_bloatwares,
             commands::cleanup::purge_bloatwares,
             commands::cleanup::disable_telemetry,
@@ -197,6 +199,9 @@ pub fn run() {
             commands::snapshot::create_snapshot,
             commands::snapshot::has_snapshot_support,
             commands::snapshot::list_snapshots,
+            commands::snapshot::get_default_backup_dir,
+            commands::snapshot::create_local_backup,
+            commands::snapshot::list_local_backups,
             // ── Processes & Turbo ────────────────────────────
             commands::processes::get_heavy_processes,
             commands::processes::kill_process,
@@ -208,6 +213,8 @@ pub fn run() {
             // ── Scheduler ────────────────────────────────────
             commands::scheduler::get_schedule,
             commands::scheduler::set_schedule,
+            commands::scheduler::set_auto_clean_schedule,
+            commands::scheduler::get_auto_clean_schedule,
             // ── Remote Dashboard ─────────────────────────────
             commands::remote::start_remote,
             commands::remote::stop_remote,

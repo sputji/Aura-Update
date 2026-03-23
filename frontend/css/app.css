@@ -330,6 +330,70 @@ body {
     letter-spacing: 0.05em;
 }
 
+/* ---- Health Circle SVG ---- */
+.health-circle-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px auto 18px;
+}
+
+.health-circle {
+    filter: drop-shadow(0 0 8px rgba(88, 166, 255, 0.3));
+    transition: filter 0.6s ease;
+}
+
+.health-circle-bg {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 8;
+    opacity: 0.3;
+}
+
+.health-circle-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 1s ease, stroke 0.6s ease;
+}
+
+.health-circle-progress.red   { stroke: #ef4444; }
+.health-circle-progress.yellow { stroke: #eab308; }
+.health-circle-progress.green  { stroke: #22c55e; }
+
+.health-circle-score {
+    fill: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: inherit;
+}
+
+.health-circle-label {
+    fill: var(--text-secondary);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: inherit;
+}
+
+.health-circle-glow {
+    position: absolute;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0.15;
+    filter: blur(25px);
+    background: var(--accent);
+    transition: background 0.6s ease;
+}
+
+.health-circle-glow.red   { background: #ef4444; }
+.health-circle-glow.yellow { background: #eab308; }
+.health-circle-glow.green  { background: #22c55e; }
+
 .health-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -839,6 +903,69 @@ body {
     font-weight: 600;
     font-size: .9rem;
     color: var(--accent);
+}
+
+/* ───── Browser Granular Cleanup ──────────────────────────── */
+.browser-granular-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.browser-granular-section .section-subtitle {
+    font-size: .95rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text);
+}
+
+.browser-granular-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.browser-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+}
+
+.browser-filter-name {
+    font-weight: 600;
+    font-size: .85rem;
+    min-width: 80px;
+    color: var(--text);
+}
+
+.browser-filter-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .78rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.browser-filter-row label input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+.browser-granular-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: .8rem;
 }
 
 /* ───── Startup List ──────────────────────────────────────── */
@@ -1740,6 +1867,22 @@ body {
 .telemetry-label { font-size: .85rem; color: var(--text); }
 
 /* ── Backups List ────────────────────────────────────────────── */
+.backup-dir-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+}
+.backup-dir-row .input-field {
+    flex: 1;
+    font-size: .78rem;
+    padding: 6px 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
 .backup-actions {
     display: flex;
     gap: 8px;

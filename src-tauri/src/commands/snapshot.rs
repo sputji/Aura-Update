@@ -26,6 +26,107 @@ pub async fn list_snapshots() -> Result<Vec<SnapshotInfo>, String> {
     list_impl().await
 }
 
+/// Get default backup directory (next to executable)
+#[tauri::command]
+pub fn get_default_backup_dir() -> String {
+    default_backup_dir()
+}
+
+/// Create a local file-based backup in the custom backup directory.
+/// Copies important user config/settings into a timestamped subfolder.
+#[tauri::command]
+pub async fn create_local_backup(backup_dir: String, label: String) -> Result<String, String> {
+    let dir = if backup_dir.is_empty() {
+        default_backup_dir()
+    } else {
+        backup_dir
+    };
+
+    let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let safe_label: String = label.chars().filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == ' ').collect();
+    let folder_name = format!("backup_{}_{}", ts, safe_label.replace(' ', "_"));
+    let dest = std::path::Path::new(&dir).join(&folder_name);
+
+    std::fs::create_dir_all(&dest).map_err(|e| format!("Cannot create backup dir: {e}"))?;
+
+    // Save config snapshot
+    if let Some(config_dir) = dirs::config_dir() {
+        let app_config = config_dir.join("aura-update");
+        if app_config.exists() {
+            let dest_config = dest.join("config");
+            copy_dir_recursive(&app_config, &dest_config)?;
+        }
+    }
+
+    // Write metadata
+    let meta = format!("label: {}\ndate: {}\nplatform: {}\n", label, ts, std::env::consts::OS);
+    std::fs::write(dest.join("backup_meta.txt"), meta).map_err(|e| e.to_string())?;
+
+    Ok(format!("Backup créé dans : {}", dest.display()))
+}
+
+/// List local backups from the custom backup directory
+#[tauri::command]
+pub fn list_local_backups(backup_dir: String) -> Result<Vec<SnapshotInfo>, String> {
+    let dir = if backup_dir.is_empty() {
+        default_backup_dir()
+    } else {
+        backup_dir
+    };
+    let path = std::path::Path::new(&dir);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let mut backups = Vec::new();
+    let entries = std::fs::read_dir(path).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() && entry.file_name().to_string_lossy().starts_with("backup_") {
+            let meta_path = p.join("backup_meta.txt");
+            let (desc, date) = if meta_path.exists() {
+                let content = std::fs::read_to_string(&meta_path).unwrap_or_default();
+                let label = content.lines().find(|l| l.starts_with("label:"))
+                    .map(|l| l.trim_start_matches("label:").trim().to_string())
+                    .unwrap_or_default();
+                let date = content.lines().find(|l| l.starts_with("date:"))
+                    .map(|l| l.trim_start_matches("date:").trim().to_string())
+                    .unwrap_or_default();
+                (label, date)
+            } else {
+                (entry.file_name().to_string_lossy().to_string(), String::new())
+            };
+            backups.push(SnapshotInfo {
+                id: entry.file_name().to_string_lossy().to_string(),
+                description: desc,
+                date,
+            });
+        }
+    }
+    backups.sort_by(|a, b| b.date.cmp(&a.date));
+    Ok(backups)
+}
+
+fn default_backup_dir() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("System Backups").to_string_lossy().to_string()))
+        .unwrap_or_else(|| "System Backups".to_string())
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(dst).map_err(|e| e.to_string())?;
+    for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let dest_path = dst.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dest_path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 // ── Windows: System Restore ──────────────────────────────────────────
 #[cfg(windows)]
 async fn has_support_impl() -> bool {

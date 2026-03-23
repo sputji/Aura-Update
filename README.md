@@ -1,6 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
+> **v2.2.2** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon-512.png" alt="Aura Update" width="128" />
@@ -113,6 +114,19 @@ Toute redistribution non autorisée est interdite.
 
 - **Site web** : [auraneo.fr](https://auraneo.fr)
 - **Email** : contact@auraneo.fr
+
+---
+
+## 📋 Changelog v2.2.2
+
+- 🎯 **Cercle de santé SVG** — Score animé avec couleurs dynamiques (rouge/jaune/vert) et glow
+- ❄️ **Cool Boost étendu** — Compatibilité 12 fabricants (Acer, Corsair, Razer, Samsung, Huawei, Toshiba, Gigabyte…)
+- 📅 **Nettoyage automatique planifié** — Quotidien, hebdomadaire ou mensuel
+- 🌐 **Nettoyage navigateurs granulaire** — Cache, historique, cookies, sessions par navigateur (Chrome, Edge, Firefox, Brave, Opera, Opera GX)
+- 🗑️ **Désinstalleur bloatwares multi-OS** — Windows (AppxPackage), macOS (Applications), Linux (apt purge)
+- 📂 **Dossier de sauvegarde personnalisable** — Backup local avec métadonnées et restauration
+- 💾 **Points de restauration automatiques** — Liés au dossier de backup choisi
+- ⚠️ **Alerte fichiers temporaires** — Popup si les fichiers temporaires dépassent 1 Go
 
 ---
 

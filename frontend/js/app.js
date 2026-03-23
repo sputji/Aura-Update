@@ -15,6 +15,7 @@ const state = {
     updates: [],
     cleanup: { items: [], total_bytes: 0 },
     residues: { items: [], total_bytes: 0 },
+    browserGranular: [],
     startupItems: [],
     processes: [],
     health: null,
@@ -208,6 +209,27 @@ function renderHealthScore(hs) {
     if (scoreDisk) scoreDisk.textContent = `${hs.disk_score}/20`;
     if (scoreStartup) scoreStartup.textContent = `${hs.startup_score}/20`;
     if (scoreTemp) scoreTemp.textContent = `${hs.temp_score}/20`;
+
+    // Health Circle SVG
+    const total = hs.total ?? (hs.update_score + hs.disk_score + hs.startup_score + hs.temp_score);
+    const circle = $('#healthCircleProgress');
+    const scoreText = $('#healthCircleScore');
+    const glow = $('#healthCircleGlow');
+    if (circle && scoreText) {
+        const circumference = 2 * Math.PI * 52; // ~326.73
+        const dashLen = (total / 100) * circumference;
+        circle.setAttribute('stroke-dasharray', `${dashLen} ${circumference}`);
+        scoreText.textContent = total;
+
+        // Color coding
+        const colorClass = total < 40 ? 'red' : total <= 70 ? 'yellow' : 'green';
+        circle.classList.remove('red', 'yellow', 'green');
+        circle.classList.add(colorClass);
+        if (glow) {
+            glow.classList.remove('red', 'yellow', 'green');
+            glow.classList.add(colorClass);
+        }
+    }
 }
 
 async function refreshHealth() {
@@ -626,6 +648,95 @@ async function scanResidues() {
     } finally {
         setBusy(false);
         $('#btnScanResidues').disabled = false;
+    }
+}
+
+/* ─── Browser Granular Cleanup ────────────────────────────── */
+function buildBrowserFilters() {
+    const rows = document.querySelectorAll('.browser-filter-row');
+    const filters = [];
+    rows.forEach(row => {
+        const browser = row.dataset.browser;
+        const cache = row.querySelector('[data-filter="cache"]').checked;
+        const history = row.querySelector('[data-filter="history"]').checked;
+        const cookies = row.querySelector('[data-filter="cookies"]').checked;
+        const sessions = row.querySelector('[data-filter="sessions"]').checked;
+        if (cache || history || cookies || sessions) {
+            filters.push({ browser, cache, history, cookies, sessions });
+        }
+    });
+    return filters;
+}
+
+async function scanBrowserGranular() {
+    const filters = buildBrowserFilters();
+    if (filters.length === 0) {
+        showToast(t('browser_no_selection') || 'Sélectionnez au moins un navigateur', 'warning');
+        return;
+    }
+    if (state.busy) return;
+    setBusy(true);
+    $('#btnScanBrowserGranular').disabled = true;
+
+    try {
+        const results = await invoke('scan_browser_granular', { filters });
+        state.browserGranular = results;
+        renderBrowserGranularResults(results);
+    } catch (e) {
+        showToast(t('error_scan') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
+        $('#btnScanBrowserGranular').disabled = false;
+    }
+}
+
+function renderBrowserGranularResults(results) {
+    const container = $('#browserGranularResults');
+    const btnClean = $('#btnCleanBrowserGranular');
+
+    if (!results || results.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">${t('browser_nothing_found') || 'Rien trouvé'}</p>`;
+        btnClean.classList.add('hidden');
+        return;
+    }
+
+    btnClean.classList.remove('hidden');
+    let totalBytes = results.reduce((s, r) => s + r.size_bytes, 0);
+
+    let html = `<div class="cleanup-summary" style="margin-top:10px;">
+        <span class="cleanup-summary-text">${results.length} ${t('items_found')} — ${formatBytes(totalBytes)} ${t('recoverable')}</span>
+    </div>`;
+
+    html += results.map(item => `
+        <div class="cleanup-item">
+            <span class="cleanup-item-icon">🌐</span>
+            <div class="cleanup-item-info">
+                <div class="cleanup-item-name">${escapeHtml(item.description)}</div>
+                <div class="cleanup-item-path">${escapeHtml(item.path)}</div>
+            </div>
+            <span class="cleanup-item-size">${formatBytes(item.size_bytes)}</span>
+        </div>`).join('');
+
+    container.innerHTML = html;
+}
+
+async function cleanBrowserGranular() {
+    if (state.busy || !state.browserGranular || state.browserGranular.length === 0) return;
+    setBusy(true);
+
+    await safeSnapshot('Nettoyage navigateurs — Aura Update');
+
+    try {
+        const paths = state.browserGranular.map(i => i.path);
+        const freed = await invoke('run_cleanup', { paths });
+        showToast(formatBytes(freed) + ' ' + t('freed'), 'success');
+        state.browserGranular = [];
+        renderBrowserGranularResults([]);
+        refreshHealth();
+    } catch (e) {
+        showToast(t('error_clean') + ': ' + e, 'error');
+    } finally {
+        setBusy(false);
     }
 }
 
@@ -1121,6 +1232,7 @@ function syncSettingsUI() {
     highlightOption('[data-theme-choice]', state.config.theme);
     highlightOption('[data-lang-choice]', state.config.language);
     highlightOption('[data-sched]', state.config.scheduler_interval);
+    highlightOption('[data-autoclean]', state.config.auto_clean_interval || 'disabled');
     highlightOption('[data-startup-mode]', state.config.startup_mode || 'visible');
 
     $('#snapshotToggle').checked = state.config.auto_snapshot;
@@ -1149,7 +1261,7 @@ function syncSettingsUI() {
 
 function highlightOption(selector, value) {
     $$(selector).forEach(btn => {
-        const val = btn.dataset.themeChoice || btn.dataset.langChoice || btn.dataset.sched || btn.dataset.startupMode;
+        const val = btn.dataset.themeChoice || btn.dataset.langChoice || btn.dataset.sched || btn.dataset.startupMode || btn.dataset.autoclean;
         btn.classList.toggle('active', val === value);
     });
 }
@@ -1326,6 +1438,19 @@ async function applySchedule(interval) {
     }
 }
 
+async function applyAutoCleanSchedule(interval) {
+    const enabled = interval !== 'disabled';
+    try {
+        await invoke('set_auto_clean_schedule', { enabled, interval });
+        await saveConfigKey('auto_clean_enabled', enabled);
+        await saveConfigKey('auto_clean_interval', interval);
+        highlightOption('[data-autoclean]', interval);
+        showToast(t('saved'), 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
 /* ─── Events from Rust ─────────────────────────────────────── */
 async function setupListeners() {
     await listen('update-progress', (event) => {
@@ -1399,6 +1524,8 @@ function bindEvents() {
     $('#btnScanClean').addEventListener('click', scanCleanup);
     $('#btnRunClean').addEventListener('click', runCleanup);
     $('#btnScanResidues').addEventListener('click', scanResidues);
+    $('#btnScanBrowserGranular').addEventListener('click', scanBrowserGranular);
+    $('#btnCleanBrowserGranular').addEventListener('click', cleanBrowserGranular);
 
     // Startup tab
     $('#btnLoadStartup').addEventListener('click', loadStartupItems);
@@ -1460,6 +1587,11 @@ function bindEvents() {
     // Scheduler choices
     $$('[data-sched]').forEach(btn => {
         btn.addEventListener('click', () => applySchedule(btn.dataset.sched));
+    });
+
+    // Auto-clean scheduler choices
+    $$('[data-autoclean]').forEach(btn => {
+        btn.addEventListener('click', () => applyAutoCleanSchedule(btn.dataset.autoclean));
     });
 
     // Snapshot toggle
@@ -1548,6 +1680,18 @@ function bindEvents() {
     if (btnLoadBackups) btnLoadBackups.addEventListener('click', loadBackups);
     const btnCreateSnapshot = $('#btnCreateSnapshot');
     if (btnCreateSnapshot) btnCreateSnapshot.addEventListener('click', createManualSnapshot);
+    const btnCreateLocalBackup = $('#btnCreateLocalBackup');
+    if (btnCreateLocalBackup) btnCreateLocalBackup.addEventListener('click', createLocalBackup);
+    const btnPickBackupDir = $('#btnPickBackupDir');
+    if (btnPickBackupDir) btnPickBackupDir.addEventListener('click', pickBackupDir);
+
+    // Temp alert
+    const btnCloseTempAlert = $('#btnCloseTempAlert');
+    if (btnCloseTempAlert) btnCloseTempAlert.addEventListener('click', closeTempAlert);
+    const btnTempAlertClean = $('#btnTempAlertClean');
+    if (btnTempAlertClean) btnTempAlertClean.addEventListener('click', tempAlertClean);
+    const btnTempAlertDismiss = $('#btnTempAlertDismiss');
+    if (btnTempAlertDismiss) btnTempAlertDismiss.addEventListener('click', closeTempAlert);
 
     // Restore warning modal
     const btnCloseRestore = $('#btnCloseRestore');
@@ -1633,6 +1777,71 @@ async function createManualSnapshot() {
         showToast(t('error') + ': ' + e, 'error');
     } finally {
         if (btn) btn.disabled = false;
+    }
+}
+
+/* ─── Custom Backup Directory ──────────────────────────────── */
+async function initBackupDir() {
+    try {
+        if (state.config && state.config.backup_dir) {
+            $('#backupDirInput').value = state.config.backup_dir;
+        } else {
+            const def = await invoke('get_default_backup_dir');
+            $('#backupDirInput').value = def;
+        }
+    } catch (_) {}
+}
+
+async function pickBackupDir() {
+    try {
+        const { open } = window.__TAURI__.dialog || window.__TAURI_PLUGIN_DIALOG__;
+        const selected = await open({ directory: true, multiple: false, title: 'Dossier de sauvegarde' });
+        if (selected) {
+            await invoke('set_config_value', { key: 'backup_dir', value: selected });
+            $('#backupDirInput').value = selected;
+            state.config.backup_dir = selected;
+            showToast(t('backup_dir_set') || 'Dossier configuré', 'success');
+        }
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+async function createLocalBackup() {
+    const btn = $('#btnCreateLocalBackup');
+    if (btn) btn.disabled = true;
+    try {
+        const backupDir = (state.config && state.config.backup_dir) || '';
+        const msg = await invoke('create_local_backup', { backupDir, label: 'Manuel — Aura Update' });
+        showToast(msg, 'success');
+        loadLocalBackups();
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function loadLocalBackups() {
+    const list = $('#localBackupsList');
+    if (!list) return;
+    try {
+        const backupDir = (state.config && state.config.backup_dir) || '';
+        const backups = await invoke('list_local_backups', { backupDir });
+        if (backups.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-muted);font-size:.8rem;">Aucun backup local</p>';
+            return;
+        }
+        list.innerHTML = backups.map(b => `
+            <div class="backup-item">
+                <span class="backup-icon">📁</span>
+                <div class="backup-info">
+                    <div class="backup-name">${escapeHtml(b.description)}</div>
+                    <div class="backup-date">${escapeHtml(b.date)}</div>
+                </div>
+            </div>`).join('');
+    } catch (e) {
+        list.innerHTML = `<p style="color:var(--danger);font-size:.85rem">${escapeHtml(String(e))}</p>`;
     }
 }
 
@@ -1892,6 +2101,7 @@ async function init() {
 
         // System info badges (non-blocking — runs after main scan)
         loadSystemSpecs();
+        initBackupDir();
 
         splashStatus(t('ready'));
 
@@ -1915,8 +2125,32 @@ async function init() {
             splash.remove();
             startTutorial();
             checkPendingCrash();
+            checkTempAlert();
         }, 650);
     }
+}
+
+/* ─── Temp Files Alert (> 1 GB) ────────────────────────────── */
+const ONE_GB = 1073741824;
+
+async function checkTempAlert() {
+    try {
+        const totalBytes = await invoke('check_temp_size');
+        if (totalBytes >= ONE_GB) {
+            $('#tempAlertSize').textContent = formatBytes(totalBytes);
+            $('#tempAlertOverlay').classList.remove('hidden');
+        }
+    } catch (_) {}
+}
+
+function closeTempAlert() {
+    $('#tempAlertOverlay').classList.add('hidden');
+}
+
+async function tempAlertClean() {
+    closeTempAlert();
+    switchTab('cleanup');
+    scanCleanup();
 }
 
 /* ─── Crash Report ─────────────────────────────────────────── */

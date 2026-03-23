@@ -27,6 +27,15 @@ const state = {
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
+/* ─── AI Provider Presets ──────────────────────────────────── */
+const AI_PRESETS = {
+    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash',  needsKey: true  },
+    openai:  { endpoint: 'https://api.openai.com',                                 model: 'gpt-4o-mini',       needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',                                       model: 'grok-3-mini',       needsKey: true  },
+    ollama:  { endpoint: 'http://localhost:11434',                                  model: 'llama3',            needsKey: false },
+    auraneo: { endpoint: 'https://ia.auraneo.fr',                                  model: 'aura-ia',           needsKey: true  },
+};
+
 /* ─── Helpers ──────────────────────────────────────────────── */
 function t(key) { return state.i18n[key] || key; }
 
@@ -397,7 +406,46 @@ function switchTab(name) {
     $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
     $$('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
     if (auraParticles) auraParticles.setThemeColor(name);
-    if (name === 'turbo') loadPredictiveGain();
+    if (name === 'turbo') {
+        loadPredictiveGain();
+        filterInstalledBrowsers();
+    }
+}
+
+/* ─── Browser Detection ───────────────────────────────────── */
+async function filterInstalledBrowsers() {
+    try {
+        const installed = await invoke('detect_installed_browsers');
+        const rows = document.querySelectorAll('.browser-filter-row');
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const key = row.dataset.browser;
+            if (installed.includes(key)) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+                // Uncheck all filters for hidden browsers
+                row.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            }
+        });
+        // Show message if no browsers detected
+        const grid = $('#browserGranularGrid');
+        let noMsg = grid?.querySelector('.no-browser-msg');
+        if (visibleCount === 0) {
+            if (!noMsg) {
+                noMsg = document.createElement('p');
+                noMsg.className = 'no-browser-msg';
+                noMsg.textContent = t('no_browsers_detected') || 'Aucun navigateur détecté';
+                noMsg.style.cssText = 'text-align:center;opacity:0.6;padding:1rem 0';
+                grid?.appendChild(noMsg);
+            }
+        } else if (noMsg) {
+            noMsg.remove();
+        }
+    } catch (e) {
+        console.warn('Browser detection failed:', e);
+    }
 }
 
 /* ─── Updates Tab ──────────────────────────────────────────── */
@@ -1277,7 +1325,22 @@ function syncSettingsUI() {
     $('#aiConfig').classList.toggle('hidden', !state.config.ai_enabled);
     $('#aiApiKey').value = state.config.ai_api_key || '';
     $('#aiEndpointInput').value = state.config.ai_endpoint || '';
-    $('#aiModelInput').value = state.config.ai_model || 'aura-ia';
+    $('#aiModelInput').value = state.config.ai_model || '';
+
+    // Detect provider from saved endpoint
+    const ep = (state.config.ai_endpoint || '').toLowerCase();
+    let detectedProvider = 'custom';
+    for (const [key, preset] of Object.entries(AI_PRESETS)) {
+        if (ep && ep.startsWith(preset.endpoint.toLowerCase())) { detectedProvider = key; break; }
+    }
+    const sel = $('#aiProviderSelect');
+    if (sel) sel.value = detectedProvider;
+    // Show/hide fields based on provider
+    const isPreset = detectedProvider !== 'custom';
+    const endpointInput = $('#aiEndpointInput');
+    const modelInput = $('#aiModelInput');
+    if (endpointInput) endpointInput.readOnly = isPreset;
+    if (modelInput) modelInput.readOnly = isPreset;
 
     // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
     const tw = $('#telemetryWindows');
@@ -1365,11 +1428,18 @@ async function acceptConsent() {
 }
 
 async function saveAIConfig() {
-    const endpoint = $('#aiEndpointInput').value.trim() || 'https://ia.auraneo.fr';
-    const model = $('#aiModelInput').value.trim() || 'aura-ia';
+    const provider = $('#aiProviderSelect')?.value || 'custom';
+    const preset = AI_PRESETS[provider];
+    const endpoint = $('#aiEndpointInput').value.trim() || (preset ? preset.endpoint : '');
+    const model = $('#aiModelInput').value.trim() || (preset ? preset.model : '');
     const apiKey = $('#aiApiKey').value.trim();
     const enabled = $('#aiToggle').checked;
     const consent = state.config.ai_consent_given;
+
+    if (!endpoint) {
+        showToast(t('ai_no_endpoint') || 'Choisissez un fournisseur ou saisissez un endpoint', 'warning');
+        return;
+    }
 
     try {
         await invoke('configure_ai', {
@@ -1663,6 +1733,37 @@ function bindEvents() {
     });
 
     $('#btnSaveAI').addEventListener('click', saveAIConfig);
+
+    // AI provider presets dropdown
+    const providerSel = $('#aiProviderSelect');
+    if (providerSel) {
+        providerSel.addEventListener('change', () => {
+            const key = providerSel.value;
+            const preset = AI_PRESETS[key];
+            const endpointInput = $('#aiEndpointInput');
+            const modelInput = $('#aiModelInput');
+            const apiKeyInput = $('#aiApiKey');
+            if (preset) {
+                endpointInput.value = preset.endpoint;
+                modelInput.value = preset.model;
+                endpointInput.readOnly = true;
+                modelInput.readOnly = true;
+                if (!preset.needsKey) {
+                    apiKeyInput.value = '';
+                    apiKeyInput.placeholder = t('ai_no_key_needed') || 'Pas de clé nécessaire';
+                } else {
+                    apiKeyInput.placeholder = t('api_key_placeholder') || 'Votre clé API';
+                }
+            } else {
+                // Custom: clear and unlock
+                endpointInput.value = '';
+                modelInput.value = '';
+                endpointInput.readOnly = false;
+                modelInput.readOnly = false;
+                apiKeyInput.placeholder = t('api_key_placeholder') || 'Votre clé API';
+            }
+        });
+    }
 
     // AI modal
     $('#btnCloseAI').addEventListener('click', () => $('#aiOverlay').classList.add('hidden'));

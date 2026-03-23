@@ -1,4 +1,9 @@
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+use std::collections::HashSet;
+
+// Cache to avoid spamming logs for already-warned missing startup paths
+static WARNED_PATHS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartupItem {
@@ -29,11 +34,15 @@ fn clean_registry_path(raw: &str) -> String {
                 if let Some(resolved) = resolve_missing_exe(&candidate) {
                     return resolved;
                 }
-                // Log broken path for diagnostic purposes (os error 2 = file not found)
-                super::logging::log_warn(&format!(
-                    "Startup path not found (os error 2): {}",
-                    candidate
-                ));
+                // Log broken path only ONCE per candidate to avoid spam
+                let mut guard = WARNED_PATHS.lock().unwrap();
+                let set = guard.get_or_insert_with(HashSet::new);
+                if set.insert(candidate.clone()) {
+                    super::logging::log_warn(&format!(
+                        "Startup path not found (os error 2): {}",
+                        candidate
+                    ));
+                }
             }
             return candidate;
         }

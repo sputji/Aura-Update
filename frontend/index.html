@@ -448,20 +448,31 @@
                     </div>
                     <div id="aiConfig" class="ai-config hidden">
                         <div class="input-group">
+                            <label data-i18n="ai_provider">Fournisseur</label>
+                            <select id="aiProviderSelect" class="input">
+                                <option value="custom">Personnalisé</option>
+                                <option value="gemini">Google Gemini</option>
+                                <option value="openai">OpenAI (ChatGPT)</option>
+                                <option value="grok">xAI (Grok)</option>
+                                <option value="ollama">Ollama (Local)</option>
+                                <option value="auraneo">Aura Néo IA</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
                             <label data-i18n="ai_endpoint">Endpoint</label>
                             <input type="text" id="aiEndpointInput" placeholder="https://ia.auraneo.fr" class="input">
-                            <small class="ai-hint" data-i18n="ai_endpoint_hint">Ex: http://localhost:11434 (Ollama) ou https://api.openai.com</small>
+                            <small class="ai-hint" data-i18n="ai_endpoint_hint">Auto-rempli selon le fournisseur</small>
                         </div>
                         <div class="input-group">
                             <label data-i18n="ai_model">Modèle</label>
                             <input type="text" id="aiModelInput" placeholder="aura-ia" class="input">
                         </div>
                         <div class="input-group">
-                            <label data-i18n="ai_apikey">API Key</label>
-                            <input type="password" id="aiApiKey" data-i18n-placeholder="api_key_placeholder" placeholder="Your API key" class="input">
+                            <label data-i18n="ai_apikey">Clé API</label>
+                            <input type="password" id="aiApiKey" data-i18n-placeholder="api_key_placeholder" placeholder="Votre clé API" class="input">
                             <small class="ai-hint" data-i18n="ai_key_hint">Laissez vide pour Ollama local</small>
                         </div>
-                        <button id="btnSaveAI" class="btn btn-sm btn-primary" data-i18n="btn_save">Save</button>
+                        <button id="btnSaveAI" class="btn btn-sm btn-primary" data-i18n="btn_save">Enregistrer</button>
                     </div>
                 </div>
                 <!-- Startup Mode -->

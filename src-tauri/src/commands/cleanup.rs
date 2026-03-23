@@ -390,6 +390,80 @@ pub struct BrowserCleanupFilter {
     pub sessions: bool,
 }
 
+/// Detect which browsers are actually installed on this machine.
+#[tauri::command]
+pub fn detect_installed_browsers() -> Vec<String> {
+    let all = vec!["chrome", "edge", "firefox", "brave", "opera", "opera_gx"];
+    all.into_iter()
+        .filter(|b| is_browser_installed(b))
+        .map(|b| b.to_string())
+        .collect()
+}
+
+fn is_browser_installed(browser: &str) -> bool {
+    #[cfg(windows)]
+    {
+        let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_default();
+        let roaming = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default();
+        let pf = std::env::var_os("ProgramFiles").map(PathBuf::from).unwrap_or_default();
+        let pf86 = std::env::var_os("ProgramFiles(x86)").map(PathBuf::from).unwrap_or_default();
+        match browser {
+            "chrome" => local.join("Google\\Chrome\\User Data").exists()
+                || pf.join("Google\\Chrome\\Application\\chrome.exe").exists()
+                || pf86.join("Google\\Chrome\\Application\\chrome.exe").exists(),
+            "edge" => local.join("Microsoft\\Edge\\User Data").exists()
+                || pf.join("Microsoft\\Edge\\Application\\msedge.exe").exists()
+                || pf86.join("Microsoft\\Edge\\Application\\msedge.exe").exists(),
+            "firefox" => roaming.join("Mozilla\\Firefox\\Profiles").exists()
+                || pf.join("Mozilla Firefox\\firefox.exe").exists()
+                || pf86.join("Mozilla Firefox\\firefox.exe").exists(),
+            "brave" => local.join("BraveSoftware\\Brave-Browser\\User Data").exists()
+                || pf.join("BraveSoftware\\Brave-Browser\\Application\\brave.exe").exists(),
+            "opera" => local.join("Opera Software\\Opera Stable").exists()
+                || pf.join("Opera\\opera.exe").exists(),
+            "opera_gx" => local.join("Opera Software\\Opera GX Stable").exists(),
+            _ => false,
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        match browser {
+            "chrome" => std::path::Path::new("/Applications/Google Chrome.app").exists()
+                || home.join("Library/Application Support/Google/Chrome").exists(),
+            "edge" => std::path::Path::new("/Applications/Microsoft Edge.app").exists()
+                || home.join("Library/Application Support/Microsoft Edge").exists(),
+            "firefox" => std::path::Path::new("/Applications/Firefox.app").exists()
+                || home.join("Library/Application Support/Firefox/Profiles").exists(),
+            "brave" => std::path::Path::new("/Applications/Brave Browser.app").exists()
+                || home.join("Library/Application Support/BraveSoftware/Brave-Browser").exists(),
+            "opera" => std::path::Path::new("/Applications/Opera.app").exists()
+                || home.join("Library/Application Support/com.operasoftware.Opera").exists(),
+            "opera_gx" => std::path::Path::new("/Applications/Opera GX.app").exists(),
+            _ => false,
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        match browser {
+            "chrome" => std::path::Path::new("/usr/bin/google-chrome").exists()
+                || std::path::Path::new("/usr/bin/google-chrome-stable").exists()
+                || home.join(".config/google-chrome").exists(),
+            "edge" => std::path::Path::new("/usr/bin/microsoft-edge").exists()
+                || home.join(".config/microsoft-edge").exists(),
+            "firefox" => std::path::Path::new("/usr/bin/firefox").exists()
+                || home.join(".mozilla/firefox").exists(),
+            "brave" => std::path::Path::new("/usr/bin/brave-browser").exists()
+                || home.join(".config/BraveSoftware/Brave-Browser").exists(),
+            "opera" => std::path::Path::new("/usr/bin/opera").exists()
+                || home.join(".config/opera").exists(),
+            "opera_gx" => false, // Opera GX n'existe pas sur Linux
+            _ => false,
+        }
+    }
+}
+
 /// Scan browser data with granular filters (cache, history, cookies, sessions).
 #[tauri::command]
 pub async fn scan_browser_granular(filters: Vec<BrowserCleanupFilter>) -> Result<CleanupReport, String> {

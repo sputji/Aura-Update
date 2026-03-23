@@ -231,7 +231,7 @@
     "licence_en_title": "Licence (Anglais)",
 
     "cool_boost_log_title": "Journal du Cool Boost",
-    "cool_boost_powerplan_only": "Power Plan + politique de refroidissement actif appliqués. Installez LibreHardwareMonitor pour le contrôle direct des ventilateurs.",
+    "cool_boost_powerplan_only": "Refroidissement actif activé : Power Plan Haute Performance + politique ACPI active (ventilateurs plus agressifs). Pour un contrôle direct des ventilateurs, installez LibreHardwareMonitor ou utilisez MSI Center / iCUE.",
 
     "close_to_tray_title": "Fermer dans la barre des tâches",
     "close_to_tray_desc": "L'application reste active en arrière-plan lors de la fermeture",

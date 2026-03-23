@@ -92,6 +92,9 @@ pub async fn ai_analyze(
         "https://ia.auraneo.fr/v1/chat/completions".to_string()
     } else if cfg.ai_endpoint.ends_with("/chat/completions") || cfg.ai_endpoint.ends_with("/chat/completions/") {
         cfg.ai_endpoint.clone()
+    } else if cfg.ai_endpoint.contains("/v1beta/") || cfg.ai_endpoint.contains("/v2beta/") {
+        // Google-style versioned API path — append only /chat/completions (no extra /v1)
+        format!("{}/chat/completions", cfg.ai_endpoint.trim_end_matches('/'))
     } else {
         format!("{}/v1/chat/completions", cfg.ai_endpoint.trim_end_matches('/'))
     };
@@ -129,14 +132,25 @@ pub async fn ai_analyze(
 
     if !resp.status().is_success() {
         let status = resp.status();
+        let status_code = status.as_u16();
         let body = resp.text().await.unwrap_or_default();
         // Extract short error message from JSON body if possible
         let detail = serde_json::from_str::<serde_json::Value>(&body)
             .ok()
             .and_then(|v| v.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str().map(String::from)))
             .unwrap_or_default();
+        // Add a human-readable hint based on HTTP status
+        let hint = match status_code {
+            400 => " — Vérifiez le nom du modèle et le format de la requête",
+            401 => " — Clé API invalide ou expirée",
+            403 => " — Accès refusé. Vérifiez votre clé API et votre abonnement",
+            404 => " — Modèle ou endpoint introuvable",
+            429 => " — Quota dépassé. Vérifiez votre facturation",
+            500..=599 => " — Erreur serveur du fournisseur IA",
+            _ => "",
+        };
         if detail.is_empty() {
-            return Err(format!("API error {}", status));
+            return Err(format!("API error {}{}", status, hint));
         } else {
             return Err(format!("API error {}: {}", status, detail));
         }

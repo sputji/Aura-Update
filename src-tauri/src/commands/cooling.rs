@@ -140,19 +140,46 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         }
     }
 
+    // Step 3.5: Detect third-party fan control software
+    if !vendor_success {
+        let sw_script = r#"
+$procs = @('MSICenterService','MSICenter','MSIAfterburner','DragonCenter',
+           'iCUE','CorsairService','CorsairCommanderService',
+           'FanControl','SpeedFan','argus-monitor','NoteBookFanControl')
+$found = @()
+foreach ($p in $procs) {
+    if (Get-Process -Name $p -ErrorAction SilentlyContinue) { $found += $p }
+}
+if ($found.Count -gt 0) { $found -join ',' } else { 'NONE' }
+"#;
+        let sw_result = Command::new("powershell")
+            .args(["-NoProfile", "-Command", sw_script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(o) = &sw_result {
+            let names = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if names != "NONE" && !names.is_empty() {
+                log.push(format!("[Fan Software] Detected: {}", names));
+                // Some software (MSI Center, iCUE) already controls fans
+                // We treat this as success since fans ARE being managed
+                vendor_success = true;
+            }
+        }
+    }
+
     // Step 4: Desktop fallback — LibreHardwareMonitor / OpenHardwareMonitor WMI
     if !vendor_success {
         let lhm_script = if active {
             r#"try {
     $fans = Get-WmiObject -Namespace root/LibreHardwareMonitor -Class Sensor -Filter "SensorType='Control'" -ErrorAction Stop
-    if ($fans -and $fans.Count -gt 0) {
+    if ($fans -and @($fans).Count -gt 0) {
         foreach ($f in $fans) { $f.Value = 100; $f.Put() | Out-Null }
         Write-Output "LHM_OK"
     } else { Write-Output "LHM_NOFAN" }
 } catch {
     try {
         $fans = Get-WmiObject -Namespace root/OpenHardwareMonitor -Class Sensor -Filter "SensorType='Control'" -ErrorAction Stop
-        if ($fans -and $fans.Count -gt 0) {
+        if ($fans -and @($fans).Count -gt 0) {
             foreach ($f in $fans) { $f.Value = 100; $f.Put() | Out-Null }
             Write-Output "OHM_OK"
         } else { Write-Output "OHM_NOFAN" }
@@ -161,14 +188,14 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         } else {
             r#"try {
     $fans = Get-WmiObject -Namespace root/LibreHardwareMonitor -Class Sensor -Filter "SensorType='Control'" -ErrorAction Stop
-    if ($fans -and $fans.Count -gt 0) {
+    if ($fans -and @($fans).Count -gt 0) {
         foreach ($f in $fans) { $f.Value = 50; $f.Put() | Out-Null }
         Write-Output "LHM_OK"
     } else { Write-Output "LHM_NOFAN" }
 } catch {
     try {
         $fans = Get-WmiObject -Namespace root/OpenHardwareMonitor -Class Sensor -Filter "SensorType='Control'" -ErrorAction Stop
-        if ($fans -and $fans.Count -gt 0) {
+        if ($fans -and @($fans).Count -gt 0) {
             foreach ($f in $fans) { $f.Value = 50; $f.Put() | Out-Null }
             Write-Output "OHM_OK"
         } else { Write-Output "OHM_NOFAN" }
@@ -202,9 +229,9 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         }
     }
 
-    // Step 5: Desktop advanced — configure cooling policy via powercfg
-    if !vendor_success && active {
-        // Set cooling policy to Active (max fan speed)
+    // Step 5: Cooling Policy via powercfg (always applied on desktop as primary method)
+    if active {
+        // Set cooling policy to Active (1) — tells BIOS to ramp fans before throttling CPU
         let _ = Command::new("powercfg")
             .args(["/setacvalueindex", "scheme_current", "sub_processor", "94d3a615-a899-4ac5-ae2b-e4d8f634367f", "1"])
             .creation_flags(CREATE_NO_WINDOW)
@@ -214,15 +241,24 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
             .args(["/setacvalueindex", "scheme_current", "sub_processor", "bc5038f7-23e0-4960-96da-33abaf5935ec", "100"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
+        // Set min processor state to 100% (force full speed — generates heat, triggers fans)
+        let _ = Command::new("powercfg")
+            .args(["/setacvalueindex", "scheme_current", "sub_processor", "893dee8e-2bef-41e0-89c6-b55d0929964c", "100"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
         let _ = Command::new("powercfg")
             .args(["/setactive", "scheme_current"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
-        log.push("[Cooling Policy] Set to Active (maximum cooling)".into());
-    } else if !vendor_success && !active {
-        // Reset cooling policy to Passive (normal)
+        log.push("[Cooling Policy] Active (max cooling) + CPU 100%".into());
+    } else {
+        // Reset cooling policy to Passive (0), min processor state to 5%
         let _ = Command::new("powercfg")
             .args(["/setacvalueindex", "scheme_current", "sub_processor", "94d3a615-a899-4ac5-ae2b-e4d8f634367f", "0"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let _ = Command::new("powercfg")
+            .args(["/setacvalueindex", "scheme_current", "sub_processor", "893dee8e-2bef-41e0-89c6-b55d0929964c", "5"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
         let _ = Command::new("powercfg")
@@ -232,8 +268,29 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         log.push("[Cooling Policy] Reset to Passive (normal)".into());
     }
 
-    if !vendor_success {
-        log.push("Fan EC: No direct fan control → Power Plan + Cooling Policy applied".into());
+    // Step 6: Read CPU temperature for user feedback
+    if active {
+        let temp_script = r#"
+try {
+    $t = Get-CimInstance -Namespace root/WMI -Class MSAcpi_ThermalZoneTemperature -ErrorAction Stop |
+        Select-Object -First 1 -ExpandProperty CurrentTemperature
+    $celsius = [math]::Round(($t - 2732) / 10, 1)
+    Write-Output "TEMP:$celsius"
+} catch { Write-Output "TEMP:N/A" }
+"#;
+        let temp_result = Command::new("powershell")
+            .args(["-NoProfile", "-Command", temp_script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(o) = &temp_result {
+            let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if out.starts_with("TEMP:") {
+                let temp = &out[5..];
+                if temp != "N/A" {
+                    log.push(format!("[CPU Temp] {}°C", temp));
+                }
+            }
+        }
     }
 
     let message = if active {

@@ -29,11 +29,11 @@ const $$ = (s) => document.querySelectorAll(s);
 
 /* ─── AI Provider Presets ──────────────────────────────────── */
 const AI_PRESETS = {
-    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash',           needsKey: true  },
-    openai:  { endpoint: 'https://api.openai.com',                                 model: 'gpt-5.4-nano',              needsKey: true  },
-    grok:    { endpoint: 'https://api.x.ai',                                       model: 'grok-4-1-fast-non-reasoning', needsKey: true  },
-    ollama:  { endpoint: 'http://localhost:11434',                                  model: 'llama3',                     needsKey: false },
-    auraneo: { endpoint: 'https://ia.auraneo.fr',                                  model: 'aura-ia',                   needsKey: true  },
+    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.0-flash', needsKey: true  },
+    openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',   needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-2',        needsKey: true  },
+    ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',        needsKey: false },
+    auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'aura-ia',       needsKey: true  },
 };
 
 /* ─── Helpers ──────────────────────────────────────────────── */

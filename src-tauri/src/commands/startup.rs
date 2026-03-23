@@ -15,9 +15,32 @@ pub struct StartupItem {
 
 /// Cleans a registry path: strips surrounding quotes and trailing arguments.
 /// e.g. `"C:\Program Files\app.exe" /start` → `C:\Program Files\app.exe`
+/// Expand Windows environment variables like %windir%, %APPDATA% etc.
+#[cfg(windows)]
+fn expand_env_vars(path: &str) -> String {
+    let mut result = path.to_string();
+    // Repeatedly expand %VAR% patterns
+    loop {
+        let Some(start) = result.find('%') else { break };
+        let rest = &result[start + 1..];
+        let Some(end) = rest.find('%') else { break };
+        let var_name = &rest[..end];
+        if var_name.is_empty() { break; }
+        match std::env::var(var_name) {
+            Ok(val) => {
+                result = format!("{}{}{}", &result[..start], val, &result[start + end + 2..]);
+            }
+            Err(_) => break,
+        }
+    }
+    result
+}
+
 #[cfg(windows)]
 fn clean_registry_path(raw: &str) -> String {
     let mut cleaned = raw.trim().to_string();
+    // Expand environment variables (%windir%, %APPDATA%, etc.)
+    cleaned = expand_env_vars(&cleaned);
     // Handle quoted path: extract content between first pair of quotes
     if cleaned.starts_with('"') {
         if let Some(end) = cleaned[1..].find('"') {
@@ -34,12 +57,12 @@ fn clean_registry_path(raw: &str) -> String {
                 if let Some(resolved) = resolve_missing_exe(&candidate) {
                     return resolved;
                 }
-                // Log broken path only ONCE per candidate to avoid spam
+                // Log broken path only ONCE per candidate (INFO level — common for uninstalled apps)
                 let mut guard = WARNED_PATHS.lock().unwrap();
                 let set = guard.get_or_insert_with(HashSet::new);
                 if set.insert(candidate.clone()) {
-                    super::logging::log_warn(&format!(
-                        "Startup path not found (os error 2): {}",
+                    super::logging::log_info(&format!(
+                        "Startup: orphaned registry entry (software uninstalled?): {}",
                         candidate
                     ));
                 }

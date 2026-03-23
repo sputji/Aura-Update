@@ -231,7 +231,7 @@
     "licence_en_title": "Licence (English)",
 
     "cool_boost_log_title": "Cool Boost Log",
-    "cool_boost_powerplan_only": "Power Plan mode only (no fan control detected)",
+    "cool_boost_powerplan_only": "Power Plan + active cooling policy applied. Install LibreHardwareMonitor for direct fan control.",
 
     "close_to_tray_title": "Close to Tray",
     "close_to_tray_desc": "The application stays active in the background when closed",

@@ -71,15 +71,21 @@ pub async fn ai_analyze(
 
     let system_prompt = format!("{} {}", base_prompt, lang_instruction);
 
-    let body = serde_json::json!({
+    // Build request body — use max_completion_tokens for xAI/Grok, max_tokens for others
+    let is_xai = cfg.ai_endpoint.contains("x.ai");
+    let mut body = serde_json::json!({
         "model": cfg.ai_model.clone(),
         "messages": [
             { "role": "system", "content": &system_prompt },
             { "role": "user", "content": request.context }
         ],
-        "max_tokens": 300,
         "temperature": 0.4,
     });
+    if is_xai {
+        body["max_completion_tokens"] = serde_json::json!(300);
+    } else {
+        body["max_tokens"] = serde_json::json!(300);
+    }
 
     // Use dynamic endpoint from config (no hardcoded constant)
     let endpoint = if cfg.ai_endpoint.is_empty() {
@@ -107,9 +113,13 @@ pub async fn ai_analyze(
         .header("Content-Type", "application/json")
         .json(&body);
 
-    // Standard OpenAI-compatible Authorization header
+    // Authorization header — Gemini uses x-goog-api-key, others use Bearer token
     if !cfg.ai_api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {}", cfg.ai_api_key));
+        if cfg.ai_endpoint.contains("googleapis.com") {
+            req = req.header("x-goog-api-key", &cfg.ai_api_key);
+        } else {
+            req = req.header("Authorization", format!("Bearer {}", cfg.ai_api_key));
+        }
     }
 
     let resp = req

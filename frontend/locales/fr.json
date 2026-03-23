@@ -231,7 +231,7 @@
     "licence_en_title": "Licence (Anglais)",
 
     "cool_boost_log_title": "Journal du Cool Boost",
-    "cool_boost_powerplan_only": "Mode Power Plan uniquement (aucun contrôle ventilateur détecté)",
+    "cool_boost_powerplan_only": "Power Plan + politique de refroidissement actif appliqués. Installez LibreHardwareMonitor pour le contrôle direct des ventilateurs.",
 
     "close_to_tray_title": "Fermer dans la barre des tâches",
     "close_to_tray_desc": "L'application reste active en arrière-plan lors de la fermeture",

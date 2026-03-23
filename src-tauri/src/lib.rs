@@ -178,6 +178,7 @@ pub fn run() {
             commands::cleanup::clean_os_residues,
             commands::cleanup::scan_browser_caches,
             commands::cleanup::scan_browser_granular,
+            commands::cleanup::kill_browser_processes,
             commands::cleanup::check_temp_size,
             commands::cleanup::list_bloatwares,
             commands::cleanup::purge_bloatwares,

@@ -62,7 +62,7 @@ pub async fn ai_analyze(
     };
 
     let body = serde_json::json!({
-        "model": "aura-ia",
+        "model": cfg.ai_model.clone(),
         "messages": [
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": request.context }
@@ -71,21 +71,38 @@ pub async fn ai_analyze(
         "temperature": 0.4,
     });
 
-    // Endpoint and App Key hardcoded — never exposed to frontend
-    const AI_ENDPOINT: &str = "https://ia.auraneo.fr/v1/chat/completions";
-    const APP_KEY: &str = "aura_aura_update_mmkzgiz4";
+    // Use dynamic endpoint from config (no hardcoded constant)
+    let endpoint = if cfg.ai_endpoint.is_empty() {
+        "https://ia.auraneo.fr/v1/chat/completions".to_string()
+    } else if cfg.ai_endpoint.ends_with("/chat/completions") || cfg.ai_endpoint.ends_with("/chat/completions/") {
+        cfg.ai_endpoint.clone()
+    } else {
+        format!("{}/v1/chat/completions", cfg.ai_endpoint.trim_end_matches('/'))
+    };
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
 
-    let resp = client
-        .post(AI_ENDPOINT)
-        .header("Authorization", format!("Bearer {}", cfg.ai_api_key))
-        .header("X-App-Key", APP_KEY)
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(if is_local { 120 } else { 30 }));
+
+    // Disable SSL verification for local endpoints (Ollama, etc.)
+    if is_local {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+
+    let client = builder.build().map_err(|e| e.to_string())?;
+
+    let mut req = client
+        .post(&endpoint)
         .header("Content-Type", "application/json")
-        .json(&body)
+        .json(&body);
+
+    // Standard OpenAI-compatible Authorization header
+    if !cfg.ai_api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", cfg.ai_api_key));
+    }
+
+    let resp = req
         .send()
         .await
         .map_err(|e| e.to_string())?;

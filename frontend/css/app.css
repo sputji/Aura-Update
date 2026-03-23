@@ -356,7 +356,7 @@ body {
     stroke: var(--accent);
     stroke-width: 8;
     stroke-linecap: round;
-    transition: stroke-dasharray 1s ease, stroke 0.6s ease;
+    transition: stroke-dasharray 1s ease, stroke-dashoffset 0.5s ease-out, stroke 0.6s ease;
 }
 
 .health-circle-progress.red   { stroke: #ef4444; }
@@ -364,7 +364,7 @@ body {
 .health-circle-progress.green  { stroke: #22c55e; }
 
 .health-circle-score {
-    fill: var(--text-primary);
+    fill: var(--text);
     font-size: 1.5rem;
     font-weight: 800;
     font-family: inherit;
@@ -1247,6 +1247,13 @@ body {
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--border-light);
+}
+
+.ai-hint {
+    display: block;
+    font-size: .7rem;
+    color: var(--text-muted);
+    margin-top: 3px;
 }
 
 .input-group {

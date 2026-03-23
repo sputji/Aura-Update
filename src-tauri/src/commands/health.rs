@@ -547,11 +547,10 @@ fn detect_gpu_name() -> String {
             .args(["SPDisplaysDataType", "-json"])
             .output()
         {
-            if let Ok(txt) = std::str::from_utf8(&out.stdout) {
-                if let Ok(val) = serde_json::from_str::<serde_json::Value>(txt) {
-                    if let Some(name) = val["SPDisplaysDataType"][0]["sppci_model"].as_str() {
-                        return name.to_string();
-                    }
+            let txt = String::from_utf8_lossy(&out.stdout);
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
+                if let Some(name) = val["SPDisplaysDataType"][0]["sppci_model"].as_str() {
+                    return name.to_string();
                 }
             }
         }

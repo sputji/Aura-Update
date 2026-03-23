@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.2** — Dernière version stable
+> **v2.2.3** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -114,6 +114,14 @@ Toute redistribution non autorisée est interdite.
 
 - **Site web** : [auraneo.fr](https://auraneo.fr)
 - **Email** : contact@auraneo.fr
+
+---
+
+## 📋 Changelog v2.2.3
+
+- 🤖 **IA universelle** — Endpoint, modèle et clé API configurables. Compatible Ollama, Gemini, OpenAI et toute API OpenAI-compatible. Détection automatique des serveurs locaux (localhost) avec désactivation SSL et timeout étendu.
+- 🎯 **Cercle de santé SVG** — Correction du contraste texte (visible en thème sombre), transition fluide `stroke-dashoffset`, rafraîchissement automatique toutes les 10 secondes.
+- 🌐 **Nettoyage navigateurs → Turbo** — La section granulaire (Chrome, Edge, Firefox, Brave, Opera, Opera GX) est désormais dans l'onglet Turbo. Chemins de cache Chromium corrigés (`Cache_Data`). Les processus navigateurs sont fermés automatiquement avant le nettoyage pour déverrouiller les fichiers.
 
 ---
 

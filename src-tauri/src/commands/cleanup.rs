@@ -431,14 +431,14 @@ fn get_browser_data_paths(browser: &str, cache: bool, history: bool, cookies: bo
         match browser {
             "chrome" => {
                 let base = local.join("Google\\Chrome\\User Data\\Default");
-                if cache   { paths.push((base.join("Cache"), "Chrome — Cache".into())); paths.push((base.join("Code Cache"), "Chrome — Code Cache".into())); }
+                if cache   { paths.push((base.join("Cache\\Cache_Data"), "Chrome — Cache".into())); paths.push((base.join("Code Cache"), "Chrome — Code Cache".into())); }
                 if history { paths.push((base.join("History"), "Chrome — Historique".into())); }
                 if cookies { paths.push((base.join("Cookies"), "Chrome — Cookies".into())); }
                 if sessions { paths.push((base.join("Sessions"), "Chrome — Sessions".into())); }
             }
             "edge" => {
                 let base = local.join("Microsoft\\Edge\\User Data\\Default");
-                if cache   { paths.push((base.join("Cache"), "Edge — Cache".into())); paths.push((base.join("Code Cache"), "Edge — Code Cache".into())); }
+                if cache   { paths.push((base.join("Cache\\Cache_Data"), "Edge — Cache".into())); paths.push((base.join("Code Cache"), "Edge — Code Cache".into())); }
                 if history { paths.push((base.join("History"), "Edge — Historique".into())); }
                 if cookies { paths.push((base.join("Cookies"), "Edge — Cookies".into())); }
                 if sessions { paths.push((base.join("Sessions"), "Edge — Sessions".into())); }
@@ -462,21 +462,21 @@ fn get_browser_data_paths(browser: &str, cache: bool, history: bool, cookies: bo
             }
             "brave" => {
                 let base = local.join("BraveSoftware\\Brave-Browser\\User Data\\Default");
-                if cache   { paths.push((base.join("Cache"), "Brave — Cache".into())); }
+                if cache   { paths.push((base.join("Cache\\Cache_Data"), "Brave — Cache".into())); }
                 if history { paths.push((base.join("History"), "Brave — Historique".into())); }
                 if cookies { paths.push((base.join("Cookies"), "Brave — Cookies".into())); }
                 if sessions { paths.push((base.join("Sessions"), "Brave — Sessions".into())); }
             }
             "opera" => {
                 let base = local.join("Opera Software\\Opera Stable");
-                if cache   { paths.push((base.join("Cache"), "Opera — Cache".into())); }
+                if cache   { paths.push((base.join("Cache\\Cache_Data"), "Opera — Cache".into())); }
                 if history { paths.push((base.join("History"), "Opera — Historique".into())); }
                 if cookies { paths.push((base.join("Cookies"), "Opera — Cookies".into())); }
                 if sessions { paths.push((base.join("Sessions"), "Opera — Sessions".into())); }
             }
             "opera_gx" => {
                 let base = local.join("Opera Software\\Opera GX Stable");
-                if cache   { paths.push((base.join("Cache"), "Opera GX — Cache".into())); }
+                if cache   { paths.push((base.join("Cache\\Cache_Data"), "Opera GX — Cache".into())); }
                 if history { paths.push((base.join("History"), "Opera GX — Historique".into())); }
                 if cookies { paths.push((base.join("Cookies"), "Opera GX — Cookies".into())); }
                 if sessions { paths.push((base.join("Sessions"), "Opera GX — Sessions".into())); }
@@ -602,14 +602,14 @@ pub async fn scan_browser_caches() -> Result<CleanupReport, String> {
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
             let local = PathBuf::from(local);
             collect_browser_items(&mut items, &[
-                (local.join("Google\\Chrome\\User Data\\Default\\Cache"), "Chrome Cache"),
+                (local.join("Google\\Chrome\\User Data\\Default\\Cache\\Cache_Data"), "Chrome Cache"),
                 (local.join("Google\\Chrome\\User Data\\Default\\Code Cache"), "Chrome Code Cache"),
-                (local.join("Microsoft\\Edge\\User Data\\Default\\Cache"), "Edge Cache"),
+                (local.join("Microsoft\\Edge\\User Data\\Default\\Cache\\Cache_Data"), "Edge Cache"),
                 (local.join("Microsoft\\Edge\\User Data\\Default\\Code Cache"), "Edge Code Cache"),
-                (local.join("BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache"), "Brave Cache"),
+                (local.join("BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache\\Cache_Data"), "Brave Cache"),
                 (local.join("Mozilla\\Firefox\\Profiles"), "Firefox Profiles Cache"),
-                (local.join("Opera Software\\Opera Stable\\Cache"), "Opera Cache"),
-                (local.join("Opera Software\\Opera GX Stable\\Cache"), "Opera GX Cache"),
+                (local.join("Opera Software\\Opera Stable\\Cache\\Cache_Data"), "Opera Cache"),
+                (local.join("Opera Software\\Opera GX Stable\\Cache\\Cache_Data"), "Opera GX Cache"),
             ]);
         }
     }
@@ -990,4 +990,76 @@ pub async fn disable_telemetry_granular(category: String, disable: bool) -> Resu
     }
 
     Ok(results)
+}
+
+// ── Kill running browser processes to unlock cache files ─────────────
+#[tauri::command]
+pub async fn kill_browser_processes() -> Result<Vec<String>, String> {
+    let mut killed = Vec::new();
+
+    #[cfg(windows)]
+    {
+        let targets = [
+            ("chrome.exe", "Chrome"),
+            ("msedge.exe", "Edge"),
+            ("firefox.exe", "Firefox"),
+            ("brave.exe", "Brave"),
+            ("opera.exe", "Opera"),
+        ];
+        for (proc, label) in &targets {
+            let output = Command::new("taskkill")
+                .args(["/F", "/IM", proc])
+                .creation_flags(0x0800_0000)
+                .output()
+                .await
+                .map_err(|e| e.to_string())?;
+            if output.status.success() {
+                killed.push(format!("{label} fermé"));
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let targets = [
+            ("Google Chrome", "Chrome"),
+            ("Microsoft Edge", "Edge"),
+            ("firefox", "Firefox"),
+            ("Brave Browser", "Brave"),
+            ("Opera", "Opera"),
+        ];
+        for (proc, label) in &targets {
+            let output = Command::new("pkill")
+                .args(["-f", proc])
+                .output()
+                .await
+                .map_err(|e| e.to_string())?;
+            if output.status.success() {
+                killed.push(format!("{label} fermé"));
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let targets = [
+            ("chrome", "Chrome"),
+            ("msedge", "Edge"),
+            ("firefox", "Firefox"),
+            ("brave", "Brave"),
+            ("opera", "Opera"),
+        ];
+        for (proc, label) in &targets {
+            let output = Command::new("pkill")
+                .args(["-f", proc])
+                .output()
+                .await
+                .map_err(|e| e.to_string())?;
+            if output.status.success() {
+                killed.push(format!("{label} fermé"));
+            }
+        }
+    }
+
+    Ok(killed)
 }

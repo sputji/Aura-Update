@@ -22,6 +22,8 @@ pub struct Config {
     pub ai_api_key: String,
     #[serde(default)]
     pub ai_app_key: String,
+    #[serde(default = "default_ai_model")]
+    pub ai_model: String,
     pub ai_consent_given: bool,
     pub scheduler_enabled: bool,
     pub scheduler_interval: String,
@@ -62,6 +64,7 @@ pub struct Config {
 fn default_true() -> bool { true }
 fn default_startup_mode() -> String { "visible".into() }
 fn default_disabled() -> String { "disabled".into() }
+fn default_ai_model() -> String { "aura-ia".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -72,6 +75,7 @@ impl Default for Config {
             ai_endpoint: "https://ia.auraneo.fr".into(),
             ai_api_key: String::new(),
             ai_app_key: "aura_aura_update_mmkzgiz4".into(),
+            ai_model: "aura-ia".into(),
             ai_consent_given: false,
             scheduler_enabled: false,
             scheduler_interval: "disabled".into(),
@@ -141,6 +145,7 @@ pub fn set_config_value(
         "aiEndpoint" | "ai_endpoint" => cfg.ai_endpoint = value.as_str().unwrap_or("").into(),
         "aiApiKey" | "ai_api_key" => cfg.ai_api_key = value.as_str().unwrap_or("").into(),
         "aiAppKey" | "ai_app_key" => cfg.ai_app_key = value.as_str().unwrap_or("").into(),
+        "aiModel" | "ai_model" => cfg.ai_model = value.as_str().unwrap_or("aura-ia").into(),
         "aiConsentGiven" | "ai_consent_given" => {
             cfg.ai_consent_given = value.as_bool().unwrap_or(false)
         }

@@ -264,6 +264,8 @@ async function refreshVitals() {
         const v = await invoke('get_system_vitals');
         displayVitals(v);
     } catch (e) { console.warn('Vitals error', e); }
+    // Auto-update health circle
+    refreshHealth();
 }
 
 function tempClass(temp) {
@@ -726,6 +728,9 @@ async function cleanBrowserGranular() {
 
     await safeSnapshot('Nettoyage navigateurs — Aura Update');
 
+    // Kill running browsers to unlock cache files
+    try { await invoke('kill_browser_processes'); } catch (_) { /* non-blocking */ }
+
     try {
         const paths = state.browserGranular.map(i => i.path);
         const freed = await invoke('run_cleanup', { paths });
@@ -927,10 +932,11 @@ async function toggleTurboMode() {
 
 async function scanBrowserCaches() {
     const btn = $('#btnScanBrowsers');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
         const report = await invoke('scan_browser_caches');
         const list = $('#browserCacheList');
+        if (!list) return;
         if (report.items.length === 0) {
             list.innerHTML = '<p style="color:var(--text-secondary);font-size:.85rem">' + t('no_browser_cache') + '</p>';
             return;
@@ -953,7 +959,7 @@ async function scanBrowserCaches() {
     } catch (e) {
         showToast(t('error') + ': ' + e, 'error');
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -1242,6 +1248,8 @@ function syncSettingsUI() {
     $('#aiStatus').textContent = state.config.ai_enabled ? t('ai_enabled') : t('ai_disabled');
     $('#aiConfig').classList.toggle('hidden', !state.config.ai_enabled);
     $('#aiApiKey').value = state.config.ai_api_key || '';
+    $('#aiEndpointInput').value = state.config.ai_endpoint || '';
+    $('#aiModelInput').value = state.config.ai_model || 'aura-ia';
 
     // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
     const tw = $('#telemetryWindows');
@@ -1329,7 +1337,8 @@ async function acceptConsent() {
 }
 
 async function saveAIConfig() {
-    const endpoint = 'https://ia.auraneo.fr';
+    const endpoint = $('#aiEndpointInput').value.trim() || 'https://ia.auraneo.fr';
+    const model = $('#aiModelInput').value.trim() || 'aura-ia';
     const apiKey = $('#aiApiKey').value.trim();
     const enabled = $('#aiToggle').checked;
     const consent = state.config.ai_consent_given;
@@ -1341,9 +1350,12 @@ async function saveAIConfig() {
             apiKey,
             consentGiven: consent,
         });
+        // Also save model separately
+        await invoke('set_config_value', { key: 'ai_model', value: model });
         state.config.ai_enabled = enabled;
         state.config.ai_endpoint = endpoint;
         state.config.ai_api_key = apiKey;
+        state.config.ai_model = model;
         showToast(t('saved'), 'success');
     } catch (e) {
         showToast(t('error') + ': ' + e, 'error');
@@ -1547,7 +1559,7 @@ function bindEvents() {
 
     // Turbo tab
     $('#btnTurboToggle').addEventListener('click', toggleTurboMode);
-    $('#btnScanBrowsers').addEventListener('click', scanBrowserCaches);
+    if ($('#btnScanBrowsers')) $('#btnScanBrowsers').addEventListener('click', scanBrowserCaches);
     $('#btnPurgeBloat').addEventListener('click', runBloatwarePurge);
 
     // Settings modal

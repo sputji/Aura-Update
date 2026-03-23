@@ -1398,6 +1398,9 @@ async function openAIHelp(context, contextType) {
     } catch (e) {
         $('#aiLoading').classList.add('hidden');
         $('#aiError').classList.remove('hidden');
+        // Show real error message
+        const errEl = $('#aiErrorDetail');
+        if (errEl) errEl.textContent = typeof e === 'string' ? e : (e.message || t('ai_error'));
     }
 }
 

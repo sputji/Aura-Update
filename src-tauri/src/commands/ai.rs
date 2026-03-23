@@ -48,11 +48,17 @@ pub async fn ai_analyze(
         return Err("AI not configured".into());
     }
 
-    let system_prompt = match request.context_type.as_str() {
+    let lang_instruction = if cfg.language == "fr" {
+        "IMPORTANT: Always answer in French."
+    } else {
+        "IMPORTANT: Always answer in English."
+    };
+
+    let base_prompt = match request.context_type.as_str() {
         "update_error" => {
             "You are a system update assistant. The user has an update error. \
              Explain the problem simply and suggest solutions. Be concise (3-5 lines max). \
-             Answer in the user's language. No personal data is shared with you."
+             No personal data is shared with you."
         }
         "cleanup_advice" => {
             "You are a system cleanup advisor. Explain in one simple sentence why this \
@@ -63,10 +69,12 @@ pub async fn ai_analyze(
         }
     };
 
+    let system_prompt = format!("{} {}", base_prompt, lang_instruction);
+
     let body = serde_json::json!({
         "model": cfg.ai_model.clone(),
         "messages": [
-            { "role": "system", "content": system_prompt },
+            { "role": "system", "content": &system_prompt },
             { "role": "user", "content": request.context }
         ],
         "max_tokens": 300,
@@ -85,7 +93,7 @@ pub async fn ai_analyze(
     let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
 
     let mut builder = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(if is_local { 120 } else { 30 }));
+        .timeout(std::time::Duration::from_secs(if is_local { 120 } else { 60 }));
 
     // Disable SSL verification for local endpoints (Ollama, etc.)
     if is_local {
@@ -110,7 +118,18 @@ pub async fn ai_analyze(
         .map_err(|e| e.to_string())?;
 
     if !resp.status().is_success() {
-        return Err(format!("AI API error: {}", resp.status()));
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        // Extract short error message from JSON body if possible
+        let detail = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str().map(String::from)))
+            .unwrap_or_default();
+        if detail.is_empty() {
+            return Err(format!("API error {}", status));
+        } else {
+            return Err(format!("API error {}: {}", status, detail));
+        }
     }
 
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;

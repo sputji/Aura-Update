@@ -681,9 +681,9 @@ async function scanBrowserGranular() {
     $('#btnScanBrowserGranular').disabled = true;
 
     try {
-        const results = await invoke('scan_browser_granular', { filters });
-        state.browserGranular = results;
-        renderBrowserGranularResults(results);
+        const report = await invoke('scan_browser_granular', { filters });
+        state.browserGranular = report.items || [];
+        renderBrowserGranularResults(state.browserGranular);
     } catch (e) {
         showToast(t('error_scan') + ': ' + e, 'error');
     } finally {
@@ -728,8 +728,10 @@ async function cleanBrowserGranular() {
 
     await safeSnapshot('Nettoyage navigateurs — Aura Update');
 
-    // Kill running browsers to unlock cache files
-    try { await invoke('kill_browser_processes'); } catch (_) { /* non-blocking */ }
+    // Kill only selected browsers to unlock cache files
+    const filters = buildBrowserFilters();
+    const selectedBrowsers = filters.map(f => f.browser);
+    try { await invoke('kill_browser_processes', { browsers: selectedBrowsers }); } catch (_) { /* non-blocking */ }
 
     try {
         const paths = state.browserGranular.map(i => i.path);

@@ -994,19 +994,21 @@ pub async fn disable_telemetry_granular(category: String, disable: bool) -> Resu
 
 // ── Kill running browser processes to unlock cache files ─────────────
 #[tauri::command]
-pub async fn kill_browser_processes() -> Result<Vec<String>, String> {
+pub async fn kill_browser_processes(browsers: Vec<String>) -> Result<Vec<String>, String> {
     let mut killed = Vec::new();
 
     #[cfg(windows)]
     {
-        let targets = [
-            ("chrome.exe", "Chrome"),
-            ("msedge.exe", "Edge"),
-            ("firefox.exe", "Firefox"),
-            ("brave.exe", "Brave"),
-            ("opera.exe", "Opera"),
+        let all_targets = [
+            ("chrome", "chrome.exe", "Chrome"),
+            ("edge", "msedge.exe", "Edge"),
+            ("firefox", "firefox.exe", "Firefox"),
+            ("brave", "brave.exe", "Brave"),
+            ("opera", "opera.exe", "Opera"),
+            ("opera_gx", "opera.exe", "Opera GX"),
         ];
-        for (proc, label) in &targets {
+        for (key, proc, label) in &all_targets {
+            if !browsers.iter().any(|b| b == key) { continue; }
             let output = Command::new("taskkill")
                 .args(["/F", "/IM", proc])
                 .creation_flags(0x0800_0000)
@@ -1021,14 +1023,16 @@ pub async fn kill_browser_processes() -> Result<Vec<String>, String> {
 
     #[cfg(target_os = "macos")]
     {
-        let targets = [
-            ("Google Chrome", "Chrome"),
-            ("Microsoft Edge", "Edge"),
-            ("firefox", "Firefox"),
-            ("Brave Browser", "Brave"),
-            ("Opera", "Opera"),
+        let all_targets = [
+            ("chrome", "Google Chrome", "Chrome"),
+            ("edge", "Microsoft Edge", "Edge"),
+            ("firefox", "firefox", "Firefox"),
+            ("brave", "Brave Browser", "Brave"),
+            ("opera", "Opera", "Opera"),
+            ("opera_gx", "Opera", "Opera GX"),
         ];
-        for (proc, label) in &targets {
+        for (key, proc, label) in &all_targets {
+            if !browsers.iter().any(|b| b == key) { continue; }
             let output = Command::new("pkill")
                 .args(["-f", proc])
                 .output()
@@ -1042,14 +1046,16 @@ pub async fn kill_browser_processes() -> Result<Vec<String>, String> {
 
     #[cfg(target_os = "linux")]
     {
-        let targets = [
-            ("chrome", "Chrome"),
-            ("msedge", "Edge"),
-            ("firefox", "Firefox"),
-            ("brave", "Brave"),
-            ("opera", "Opera"),
+        let all_targets = [
+            ("chrome", "chrome", "Chrome"),
+            ("edge", "msedge", "Edge"),
+            ("firefox", "firefox", "Firefox"),
+            ("brave", "brave", "Brave"),
+            ("opera", "opera", "Opera"),
+            ("opera_gx", "opera", "Opera GX"),
         ];
-        for (proc, label) in &targets {
+        for (key, proc, label) in &all_targets {
+            if !browsers.iter().any(|b| b == key) { continue; }
             let output = Command::new("pkill")
                 .args(["-f", proc])
                 .output()

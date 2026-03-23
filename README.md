@@ -117,6 +117,15 @@ Toute redistribution non autorisée est interdite.
 
 ---
 
+## 📋 Changelog v2.2.4
+
+- 🎮 **Détection GPU réelle** — Filtrage des adaptateurs virtuels (Parsec, Remote Desktop, RDP, Microsoft Basic Display) pour afficher le vrai GPU matériel avec fallback automatique.
+- 🔧 **Fix TypeError results.reduce** — Gestion robuste du retour `CleanupReport` : double vérification `Array.isArray` et extraction défensive `report.items`, plus protection null-safe des checkboxes.
+- 🎨 **Refonte UI Caches Navigateurs** — Nouvelle interface avec icônes colorées par navigateur (Chrome 🟡, Edge 🔵, Firefox 🟠, Brave 🟤, Opera 🔴), badge de résumé animé, liste scrollable stylisée, états vides élégants.
+- ⚙️ **Event listeners Turbo** — Correction de l'organisation du code : les boutons Scanner/Nettoyer navigateurs sont correctement rattachés à l'onglet Turbo avec vérification défensive `.
+
+---
+
 ## 📋 Changelog v2.2.3
 
 - 🤖 **IA universelle** — Endpoint, modèle et clé API configurables. Compatible Ollama, Gemini, OpenAI et toute API OpenAI-compatible. Détection automatique des serveurs locaux (localhost) avec désactivation SSL et timeout étendu.

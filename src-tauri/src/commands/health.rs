@@ -528,6 +528,19 @@ fn detect_gpu_name() -> String {
         use std::process::Command;
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // Try to get the real GPU, excluding virtual/remote display adapters
+        if let Ok(out) = Command::new("powershell")
+            .args(["-NoProfile", "-Command",
+                "(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Parsec|Remote|Virtual|RDP|Basic Display|Microsoft Basic' } | Select-Object -First 1 -ExpandProperty Name)"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
+            let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !name.is_empty() && out.status.success() {
+                return name;
+            }
+        }
+        // Fallback: if all adapters were filtered out, pick any non-empty one
         if let Ok(out) = Command::new("powershell")
             .args(["-NoProfile", "-Command",
                 "(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Name)"])

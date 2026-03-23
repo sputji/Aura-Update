@@ -659,10 +659,14 @@ function buildBrowserFilters() {
     const filters = [];
     rows.forEach(row => {
         const browser = row.dataset.browser;
-        const cache = row.querySelector('[data-filter="cache"]').checked;
-        const history = row.querySelector('[data-filter="history"]').checked;
-        const cookies = row.querySelector('[data-filter="cookies"]').checked;
-        const sessions = row.querySelector('[data-filter="sessions"]').checked;
+        const cacheEl = row.querySelector('[data-filter="cache"]');
+        const histEl  = row.querySelector('[data-filter="history"]');
+        const cookEl  = row.querySelector('[data-filter="cookies"]');
+        const sessEl  = row.querySelector('[data-filter="sessions"]');
+        const cache    = cacheEl ? cacheEl.checked : false;
+        const history  = histEl  ? histEl.checked  : false;
+        const cookies  = cookEl  ? cookEl.checked  : false;
+        const sessions = sessEl  ? sessEl.checked  : false;
         if (cache || history || cookies || sessions) {
             filters.push({ browser, cache, history, cookies, sessions });
         }
@@ -678,46 +682,68 @@ async function scanBrowserGranular() {
     }
     if (state.busy) return;
     setBusy(true);
-    $('#btnScanBrowserGranular').disabled = true;
+    const btn = $('#btnScanBrowserGranular');
+    if (btn) btn.disabled = true;
 
     try {
-        const report = await invoke('scan_browser_granular', { filters });
-        state.browserGranular = report.items || [];
-        renderBrowserGranularResults(state.browserGranular);
+        const raw = await invoke('scan_browser_granular', { filters });
+        // Robust: handle both CleanupReport object and raw array
+        const items = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.items) ? raw.items : []);
+        state.browserGranular = items;
+        renderBrowserGranularResults(items);
     } catch (e) {
         showToast(t('error_scan') + ': ' + e, 'error');
     } finally {
         setBusy(false);
-        $('#btnScanBrowserGranular').disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
 function renderBrowserGranularResults(results) {
     const container = $('#browserGranularResults');
     const btnClean = $('#btnCleanBrowserGranular');
+    if (!container) return;
 
-    if (!results || results.length === 0) {
-        container.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">${t('browser_nothing_found') || 'Rien trouvé'}</p>`;
-        btnClean.classList.add('hidden');
+    // Ensure results is always an array
+    const items = Array.isArray(results) ? results : (results && Array.isArray(results.items) ? results.items : []);
+
+    if (items.length === 0) {
+        container.innerHTML = `<div class="browser-empty-state">
+            <span class="browser-empty-icon">✨</span>
+            <p>${t('browser_nothing_found') || 'Aucun fichier trouvé'}</p>
+        </div>`;
+        if (btnClean) btnClean.classList.add('hidden');
         return;
     }
 
-    btnClean.classList.remove('hidden');
-    let totalBytes = results.reduce((s, r) => s + r.size_bytes, 0);
+    if (btnClean) btnClean.classList.remove('hidden');
+    const totalBytes = items.reduce((s, r) => s + (r.size_bytes || 0), 0);
 
-    let html = `<div class="cleanup-summary" style="margin-top:10px;">
-        <span class="cleanup-summary-text">${results.length} ${t('items_found')} — ${formatBytes(totalBytes)} ${t('recoverable')}</span>
+    let html = `<div class="browser-results-summary">
+        <div class="browser-results-badge">${items.length}</div>
+        <div class="browser-results-info">
+            <span class="browser-results-count">${items.length} ${t('items_found') || 'éléments trouvés'}</span>
+            <span class="browser-results-size">${formatBytes(totalBytes)} ${t('recoverable') || 'récupérables'}</span>
+        </div>
     </div>`;
 
-    html += results.map(item => `
-        <div class="cleanup-item">
-            <span class="cleanup-item-icon">🌐</span>
-            <div class="cleanup-item-info">
-                <div class="cleanup-item-name">${escapeHtml(item.description)}</div>
-                <div class="cleanup-item-path">${escapeHtml(item.path)}</div>
+    html += '<div class="browser-results-list">';
+    html += items.map(item => {
+        const icon = item.category?.includes('chrome') ? '🟡' :
+                     item.category?.includes('edge') ? '🔵' :
+                     item.category?.includes('firefox') ? '🟠' :
+                     item.category?.includes('brave') ? '🟤' :
+                     item.category?.includes('opera') ? '🔴' : '🌐';
+        return `<div class="browser-result-item">
+            <span class="browser-result-icon">${icon}</span>
+            <div class="browser-result-info">
+                <span class="browser-result-name">${escapeHtml(item.description)}</span>
+                <span class="browser-result-path">${escapeHtml(item.path)}</span>
             </div>
-            <span class="cleanup-item-size">${formatBytes(item.size_bytes)}</span>
-        </div>`).join('');
+            <span class="browser-result-size">${formatBytes(item.size_bytes)}</span>
+        </div>`;
+    }).join('');
+    html += '</div>';
 
     container.innerHTML = html;
 }
@@ -1538,8 +1564,6 @@ function bindEvents() {
     $('#btnScanClean').addEventListener('click', scanCleanup);
     $('#btnRunClean').addEventListener('click', runCleanup);
     $('#btnScanResidues').addEventListener('click', scanResidues);
-    $('#btnScanBrowserGranular').addEventListener('click', scanBrowserGranular);
-    $('#btnCleanBrowserGranular').addEventListener('click', cleanBrowserGranular);
 
     // Startup tab
     $('#btnLoadStartup').addEventListener('click', loadStartupItems);
@@ -1562,6 +1586,8 @@ function bindEvents() {
     // Turbo tab
     $('#btnTurboToggle').addEventListener('click', toggleTurboMode);
     if ($('#btnScanBrowsers')) $('#btnScanBrowsers').addEventListener('click', scanBrowserCaches);
+    if ($('#btnScanBrowserGranular')) $('#btnScanBrowserGranular').addEventListener('click', scanBrowserGranular);
+    if ($('#btnCleanBrowserGranular')) $('#btnCleanBrowserGranular').addEventListener('click', cleanBrowserGranular);
     $('#btnPurgeBloat').addEventListener('click', runBloatwarePurge);
 
     // Settings modal

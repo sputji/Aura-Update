@@ -10,7 +10,8 @@ pub struct AiRequest {
 #[tauri::command]
 pub fn ai_is_available(state: tauri::State<'_, AppState>) -> bool {
     let cfg = state.config.lock().unwrap();
-    cfg.ai_enabled && cfg.ai_consent_given && !cfg.ai_api_key.is_empty()
+    let is_local = cfg.ai_endpoint.contains("localhost") || cfg.ai_endpoint.contains("127.0.0.1");
+    cfg.ai_enabled && cfg.ai_consent_given && (is_local || !cfg.ai_api_key.is_empty())
 }
 
 #[tauri::command]
@@ -42,7 +43,8 @@ pub async fn ai_analyze(
 ) -> Result<String, String> {
     let cfg = state.config.lock().unwrap().clone();
 
-    if !cfg.ai_enabled || !cfg.ai_consent_given || cfg.ai_api_key.is_empty() {
+    let is_local = cfg.ai_endpoint.contains("localhost") || cfg.ai_endpoint.contains("127.0.0.1");
+    if !cfg.ai_enabled || !cfg.ai_consent_given || (!is_local && cfg.ai_api_key.is_empty()) {
         return Err("AI not configured".into());
     }
 

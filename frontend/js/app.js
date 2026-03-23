@@ -29,11 +29,11 @@ const $$ = (s) => document.querySelectorAll(s);
 
 /* ─── AI Provider Presets ──────────────────────────────────── */
 const AI_PRESETS = {
-    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash',  needsKey: true  },
-    openai:  { endpoint: 'https://api.openai.com',                                 model: 'gpt-4o-mini',       needsKey: true  },
-    grok:    { endpoint: 'https://api.x.ai',                                       model: 'grok-3-mini',       needsKey: true  },
-    ollama:  { endpoint: 'http://localhost:11434',                                  model: 'llama3',            needsKey: false },
-    auraneo: { endpoint: 'https://ia.auraneo.fr',                                  model: 'aura-ia',           needsKey: true  },
+    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash',           needsKey: true  },
+    openai:  { endpoint: 'https://api.openai.com',                                 model: 'gpt-5.4-nano',              needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',                                       model: 'grok-4-1-fast-non-reasoning', needsKey: true  },
+    ollama:  { endpoint: 'http://localhost:11434',                                  model: 'llama3',                     needsKey: false },
+    auraneo: { endpoint: 'https://ia.auraneo.fr',                                  model: 'aura-ia',                   needsKey: true  },
 };
 
 /* ─── Helpers ──────────────────────────────────────────────── */
@@ -1335,12 +1335,10 @@ function syncSettingsUI() {
     }
     const sel = $('#aiProviderSelect');
     if (sel) sel.value = detectedProvider;
-    // Show/hide fields based on provider
+    // Lock endpoint for presets, model always editable
     const isPreset = detectedProvider !== 'custom';
     const endpointInput = $('#aiEndpointInput');
-    const modelInput = $('#aiModelInput');
     if (endpointInput) endpointInput.readOnly = isPreset;
-    if (modelInput) modelInput.readOnly = isPreset;
 
     // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
     const tw = $('#telemetryWindows');
@@ -1747,7 +1745,7 @@ function bindEvents() {
                 endpointInput.value = preset.endpoint;
                 modelInput.value = preset.model;
                 endpointInput.readOnly = true;
-                modelInput.readOnly = true;
+                modelInput.readOnly = false;
                 if (!preset.needsKey) {
                     apiKeyInput.value = '';
                     apiKeyInput.placeholder = t('ai_no_key_needed') || 'Pas de clé nécessaire';

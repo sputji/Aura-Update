@@ -4,7 +4,7 @@
 > **v2.2.2** — Dernière version stable
 
 <p align="center">
-  <img src="frontend/icons/icon-512.png" alt="Aura Update" width="128" />
+  <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
 </p>
 
 ---

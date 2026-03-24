@@ -529,7 +529,7 @@ async function scanUpdates() {
     try {
         state.updates = await Promise.race([
             invoke('check_updates'),
-            new Promise((_, reject) => setTimeout(() => reject('timeout'), 60000))
+            new Promise((_, reject) => setTimeout(() => reject('timeout'), 130000))
         ]);
         renderUpdateList();
     } catch (e) {
@@ -2321,7 +2321,7 @@ async function init() {
 
         const autoScanResults = await Promise.allSettled([
             withTimeout(invoke('get_health_score'), 15000),
-            withTimeout(invoke('check_updates'), 60000),
+            withTimeout(invoke('check_updates'), 130000),
             withTimeout(invoke('scan_cleanup'), 15000),
             withTimeout(invoke('get_startup_items'), 10000),
             withTimeout(invoke('get_heavy_processes'), 10000),

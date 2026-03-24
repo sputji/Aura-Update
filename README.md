@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.5** — Dernière version stable
+> **v2.2.6** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -114,6 +114,15 @@ Toute redistribution non autorisée est interdite.
 
 - **Site web** : [auraneo.fr](https://auraneo.fr)
 - **Email** : contact@auraneo.fr
+
+---
+
+## 📋 Changelog v2.2.6
+
+- 🐛 **Fix critique : détection Windows Update** — Les mises à jour Windows (KB cumulative, sécurité) n'étaient plus détectées. Cause racine : `Start-Job` + `Wait-Job -Timeout 40` tuait la recherche COM avant qu'elle ne se termine (une recherche WU réelle prend 60-90s). Correction : exécution directe du COM sans Start-Job, timeout Rust augmenté à 120s avec `kill_on_drop` comme filet de sécurité.
+- 🐛 **Fix logique reboot_pending** — Quand un redémarrage était en attente, les nouvelles mises à jour disponibles étaient masquées. Les deux (notification reboot + mises à jour) sont maintenant affichées.
+- ⏱️ **Initialisation services WU** — Délai d'attente après démarrage de wuauserv/BITS passé de 500ms à 3s pour laisser le service s'initialiser complètement.
+- ⏱️ **Timeouts frontend augmentés** — Splash et scan manuel passés à 130s pour correspondre au timeout Rust (120s + marge).
 
 ---
 

@@ -23,9 +23,9 @@ pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
 
     #[cfg(windows)]
     {
-        // Timeout both checks — WU COM and winget can hang indefinitely
+        // Timeout both checks — WU COM can take 60-90s on real scans
         let winget_fut = tokio::time::timeout(Duration::from_secs(30), check_winget());
-        let wupd_fut = tokio::time::timeout(Duration::from_secs(45), check_windows_update());
+        let wupd_fut = tokio::time::timeout(Duration::from_secs(120), check_windows_update());
         let (winget_res, wupd_res) = tokio::join!(winget_fut, wupd_fut);
 
         // winget: use result or empty on timeout
@@ -35,22 +35,21 @@ pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
         // Windows Update: use result or empty on timeout
         let wupd = wupd_res.unwrap_or_default();
 
-        // If a reboot is pending, skip re-listing WU items and add a single notification
+        // Always include found updates
+        all.extend(wupd);
+
+        // If a reboot is also pending, add a notification
         if is_reboot_pending() {
-            if !wupd.is_empty() {
-                all.push(UpdatePackage {
-                    id: "wu-reboot".into(),
-                    name: "Redémarrage requis pour finaliser les mises à jour".into(),
-                    current_version: String::new(),
-                    new_version: String::new(),
-                    manager: "windows-update".into(),
-                    pkg_type: "reboot".into(),
-                    needs_admin: false,
-                    pending_reboot: true,
-                });
-            }
-        } else {
-            all.extend(wupd);
+            all.push(UpdatePackage {
+                id: "wu-reboot".into(),
+                name: "Redémarrage requis pour finaliser les mises à jour".into(),
+                current_version: String::new(),
+                new_version: String::new(),
+                manager: "windows-update".into(),
+                pkg_type: "reboot".into(),
+                needs_admin: false,
+                pending_reboot: true,
+            });
         }
     }
 
@@ -265,25 +264,24 @@ async fn check_windows_update() -> Vec<UpdatePackage> {
         .creation_flags(0x0800_0000)
         .output()
         .await;
-    // Brief pause so the service can initialize
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    // Give wuauserv enough time to fully initialize before COM search
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
+    // Run COM search directly — kill_on_drop + Rust timeout (120 s) are the safety net
     let ps = r#"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-# Run the search in a background job with a 40s timeout
-$job = Start-Job -ScriptBlock {
+try {
     $s = New-Object -ComObject Microsoft.Update.Session
     $q = $s.CreateUpdateSearcher()
-    try { $r = $q.Search("IsInstalled=0") } catch { return }
-    $r.Updates | ForEach-Object {
-        $crit = if ($_.MsrcSeverity -eq 'Critical' -or $_.IsMandatory) { 'critical' } else { 'system' }
-        $ver = if ($_.Identity.UpdateID) { $_.Identity.UpdateID.Substring(0,8) } else { 'latest' }
-        "$($_.Title)|$ver|$crit"
+    $r = $q.Search("IsInstalled=0")
+    foreach ($u in $r.Updates) {
+        $crit = if ($u.MsrcSeverity -eq 'Critical' -or $u.IsMandatory) { 'critical' } else { 'system' }
+        $ver  = if ($u.Identity.UpdateID) { $u.Identity.UpdateID.Substring(0,8) } else { 'latest' }
+        "$($u.Title)|$ver|$crit"
     }
+} catch {
+    # Silently fail — Rust kill_on_drop is the safety net
 }
-$done = $job | Wait-Job -Timeout 40
-if ($done) { Receive-Job $job } else { Stop-Job $job }
-Remove-Job $job -Force -ErrorAction SilentlyContinue
 "#;
     let out = Command::new("powershell")
         .args(["-NoProfile", "-Command", ps])

@@ -1506,8 +1506,16 @@ async function acceptConsent() {
         state.config.ai_enabled = true;
     }
 
+    // Sync toggle UI: check the toggle, update status text, show config panel
+    const toggle = $('#aiToggle');
+    if (toggle) toggle.checked = true;
+    const status = $('#aiStatus');
+    if (status) status.textContent = t('ai_enabled');
+    const configPanel = $('#aiConfig');
+    if (configPanel) configPanel.classList.remove('hidden');
+
     // Proceed with pending AI request
-    if (state._pendingAI) {
+    if (state._pendingAI && state._pendingAI.context) {
         openAIHelp(state._pendingAI.context, state._pendingAI.type);
         state._pendingAI = null;
     }

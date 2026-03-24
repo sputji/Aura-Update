@@ -44,9 +44,15 @@ pub struct Config {
     /// Granular telemetry: Office telemetry
     #[serde(default = "default_true")]
     pub telemetry_office: bool,
-    /// Granular telemetry: VS Code telemetry
+    /// Granular telemetry: NVIDIA telemetry
     #[serde(default = "default_true")]
-    pub telemetry_vscode: bool,
+    pub telemetry_nvidia: bool,
+    /// Granular telemetry: Browser telemetry (Edge/Chrome/Firefox)
+    #[serde(default = "default_true")]
+    pub telemetry_browsers: bool,
+    /// Granular telemetry: Ad tracking / Activity History / Location
+    #[serde(default = "default_true")]
+    pub telemetry_tracking: bool,
     /// Custom backup directory (if user wants to avoid C:)
     #[serde(default)]
     pub backup_dir: String,
@@ -86,7 +92,9 @@ impl Default for Config {
             tray_enabled: true,
             telemetry_windows: true,
             telemetry_office: true,
-            telemetry_vscode: true,
+            telemetry_nvidia: true,
+            telemetry_browsers: true,
+            telemetry_tracking: true,
             backup_dir: String::new(),
             close_to_tray: false,
             auto_clean_enabled: false,
@@ -157,7 +165,9 @@ pub fn set_config_value(
         "tray_enabled" => cfg.tray_enabled = value.as_bool().unwrap_or(true),
         "telemetry_windows" => cfg.telemetry_windows = value.as_bool().unwrap_or(true),
         "telemetry_office" => cfg.telemetry_office = value.as_bool().unwrap_or(true),
-        "telemetry_vscode" => cfg.telemetry_vscode = value.as_bool().unwrap_or(true),
+        "telemetry_nvidia" => cfg.telemetry_nvidia = value.as_bool().unwrap_or(true),
+        "telemetry_browsers" => cfg.telemetry_browsers = value.as_bool().unwrap_or(true),
+        "telemetry_tracking" => cfg.telemetry_tracking = value.as_bool().unwrap_or(true),
         "backup_dir" => cfg.backup_dir = value.as_str().unwrap_or("").into(),
         "close_to_tray" => cfg.close_to_tray = value.as_bool().unwrap_or(false),
         "auto_clean_enabled" => cfg.auto_clean_enabled = value.as_bool().unwrap_or(false),

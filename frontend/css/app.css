@@ -2116,70 +2116,7 @@ body {
 .backup-desc { color: var(--text); font-weight: 500; }
 .backup-date { color: var(--text-secondary); font-size: .78rem; }
 
-/* ── Immersive Tutorial Overlay ──────────────────────────────── */
-.tuto-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.75);
-    z-index: 9998;
-    backdrop-filter: blur(2px);
-    transition: opacity 0.3s;
-}
-.tuto-highlight {
-    position: relative;
-    z-index: 9999 !important;
-    box-shadow: 0 0 0 4px var(--accent), 0 0 20px rgba(139, 92, 246, 0.5);
-    border-radius: var(--radius-sm);
-}
-.tuto-bubble {
-    position: fixed;
-    z-index: 10000;
-    background: var(--bg-card);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-md);
-    padding: 20px;
-    max-width: 340px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(139, 92, 246, 0.2);
-    animation: tuto-pop 0.3s ease;
-}
-@keyframes tuto-pop {
-    from { opacity: 0; transform: scale(0.9) translateY(10px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-}
-.tuto-step-indicator {
-    font-size: .75rem;
-    color: var(--accent);
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-.tuto-bubble p {
-    color: var(--text);
-    font-size: .9rem;
-    line-height: 1.5;
-    margin-bottom: 14px;
-}
-.btn-tuto-next {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    padding: 8px 20px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-weight: 600;
-    font-size: .85rem;
-    transition: transform 0.15s;
-}
-.btn-tuto-next:hover { transform: scale(1.05); }
-.btn-tuto-skip {
-    background: transparent;
-    color: var(--text-secondary);
-    border: none;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: .82rem;
-    margin-left: 8px;
-}
-.btn-tuto-skip:hover { color: var(--text); }
+/* ── (Tutorial styles consolidated below in Onboarding Tutorial section) ── */
 
 /* Particle canvas container */
 .canvas-container {
@@ -2273,7 +2210,7 @@ body {
 .tuto-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: transparent;
     z-index: 11000;
     pointer-events: auto;
     transition: opacity 0.3s ease;
@@ -2333,10 +2270,12 @@ body {
 .tuto-highlight {
     position: relative;
     z-index: 11005 !important;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75), 0 0 20px var(--accent) !important;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 24px 4px var(--accent) !important;
     border-radius: var(--radius);
     pointer-events: none;
-    background: var(--bg-card) !important;
+    /* No background override — shows the actual element content clearly */
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
 }
 
 @keyframes fadeInUp {

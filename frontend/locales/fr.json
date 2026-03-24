@@ -166,7 +166,7 @@
     "cool_active": "Refroidissement en cours…",
     "cool_cooldown": "Récupération…",
     "cool_error": "Contrôle ventilateur indisponible",
-    "cool_boost_started": "Boost activé",
+    "cool_boost_started": "Cool Boost activé \u2014 Performance maximale, refroidissement actif",
     "cool_boost_finished": "Boost terminé",
 
     "remote_token_secured": "Session sécurisée par jeton",

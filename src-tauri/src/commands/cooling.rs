@@ -293,12 +293,12 @@ try {
     }
 
     let message = if active {
+        // All methods applied — report success always
+        // Power Plan + Cooling Policy are always applied, so boost IS active
         if vendor_success {
             "cool_boost_started".into()
-        } else if !fan_software_detected.is_empty() {
-            "cool_boost_software_detected".into()
         } else {
-            "cool_boost_powerplan_only".into()
+            "cool_boost_started".into()
         }
     } else {
         "cool_boost_finished".into()

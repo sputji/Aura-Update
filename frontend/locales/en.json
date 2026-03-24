@@ -166,7 +166,7 @@
     "cool_active": "Cooling in progress…",
     "cool_cooldown": "Recovery…",
     "cool_error": "Fan control unavailable",
-    "cool_boost_started": "Boost activated",
+    "cool_boost_started": "Cool Boost activated \u2014 Maximum performance, active cooling",
     "cool_boost_finished": "Boost finished",
 
     "remote_token_secured": "Session secured by token",

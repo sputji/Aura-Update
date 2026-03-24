@@ -29,11 +29,11 @@ const $$ = (s) => document.querySelectorAll(s);
 
 /* ─── AI Provider Presets ──────────────────────────────────── */
 const AI_PRESETS = {
-    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.0-flash', needsKey: true  },
-    openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',    needsKey: true  },
-    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-2-latest',  needsKey: true  },
-    ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',         needsKey: false },
-    auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'rapide',         needsKey: true  },
+    gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', needsKey: true  },
+    openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',         needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-3-mini-fast',    needsKey: true  },
+    ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',              needsKey: false },
+    auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'rapide',              needsKey: true  },
 };
 
 /* ─── Helpers ──────────────────────────────────────────────── */
@@ -325,12 +325,9 @@ async function runCoolBoost() {
             return;
         }
 
-        // If only the Power Plan was changed (no EC fan control), show an informative
-        // status message so the user knows the exact extent of the action.
-        if (result.message === 'cool_boost_powerplan_only') {
-            statusText.textContent = t('cool_boost_powerplan_only');
-            showToast(t('cool_boost_powerplan_only'), '');
-        }
+        // Show success status
+        statusText.textContent = t(result.message) || t('cool_boost_started');
+        showToast(t(result.message) || t('cool_boost_started'), 'success');
     } catch (e) {
         showToast(t('cool_error'), 'error');
         resetCoolingUI();

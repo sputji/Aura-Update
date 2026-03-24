@@ -73,7 +73,7 @@ pub async fn ai_analyze(
 
     // ── Detect provider type ──
     let is_auraneo = cfg.ai_endpoint.contains("auraneo.fr");
-    let is_xai = cfg.ai_endpoint.contains("x.ai");
+    let _is_xai = cfg.ai_endpoint.contains("x.ai");
 
     // ── Build endpoint URL ──
     let endpoint = if is_auraneo {
@@ -104,26 +104,22 @@ pub async fn ai_analyze(
             "language": cfg.language.clone(),
         })
     } else {
-        let mut b = serde_json::json!({
+        let b = serde_json::json!({
             "model": cfg.ai_model.clone(),
             "messages": [
                 { "role": "system", "content": &system_prompt },
                 { "role": "user", "content": request.context }
             ],
             "temperature": 0.4,
+            "max_tokens": 300,
         });
-        if is_xai {
-            b["max_completion_tokens"] = serde_json::json!(300);
-        } else {
-            b["max_tokens"] = serde_json::json!(300);
-        }
         b
     };
 
     let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
 
     let mut builder = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(if is_local { 120 } else { 60 }));
+        .timeout(std::time::Duration::from_secs(if is_local { 120 } else if is_auraneo { 90 } else { 60 }));
 
     if is_local {
         builder = builder.danger_accept_invalid_certs(true);

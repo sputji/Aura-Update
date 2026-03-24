@@ -74,7 +74,17 @@ pub async fn list_ai_models(
                     req = req.header("Authorization", format!("Bearer {}", api_key));
                 }
             }
-            let resp = req.send().await.map_err(|e| e.to_string())?;
+            let resp = match req.send().await {
+                Ok(r) => r,
+                Err(_) => {
+                    // Network error → return hardcoded modes as fallback
+                    return Ok(vec![
+                        AiModelInfo { id: "rapide".into(), name: "Rapide (Qwen 7B)".into() },
+                        AiModelInfo { id: "reflexions".into(), name: "Réflexions (Qwen 7B)".into() },
+                        AiModelInfo { id: "intelligent".into(), name: "Intelligent (DeepSeek 7B)".into() },
+                    ]);
+                }
+            };
             if !resp.status().is_success() {
                 // Fallback: return hardcoded modes
                 return Ok(vec![

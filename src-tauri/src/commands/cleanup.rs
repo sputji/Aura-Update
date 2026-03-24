@@ -978,7 +978,7 @@ pub async fn disable_telemetry() -> Result<Vec<String>, String> {
 }
 
 /// Granular telemetry control: disable/enable per-category.
-/// Categories: "windows", "office", "vscode"
+/// Categories: "windows", "office", "nvidia", "browsers", "tracking"
 #[tauri::command]
 pub async fn disable_telemetry_granular(category: String, disable: bool) -> Result<Vec<String>, String> {
     let mut results: Vec<String> = Vec::new();
@@ -987,6 +987,7 @@ pub async fn disable_telemetry_granular(category: String, disable: bool) -> Resu
     {
         match category.as_str() {
             "windows" => {
+                // ── Services de télémétrie Windows ──
                 let services = ["DiagTrack", "dmwappushservice", "diagnosticshub.standardcollector.service", "WerSvc"];
                 let action = if disable { "disabled" } else { "demand" };
                 for svc in &services {
@@ -1030,28 +1031,141 @@ pub async fn disable_telemetry_granular(category: String, disable: bool) -> Resu
                     .output().await;
                 results.push(format!("Office telemetry: {}", if disable { "disabled" } else { "enabled" }));
             }
-            "vscode" => {
-                // VS Code telemetry is in settings.json — modify user settings
-                if let Some(appdata) = std::env::var_os("APPDATA") {
-                    let settings_path = std::path::PathBuf::from(appdata)
-                        .join("Code")
-                        .join("User")
-                        .join("settings.json");
-                    if settings_path.exists() {
-                        if let Ok(content) = std::fs::read_to_string(&settings_path) {
-                            if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
-                                let val = if disable { "off" } else { "all" };
-                                json["telemetry.telemetryLevel"] = serde_json::Value::String(val.into());
-                                if let Ok(out) = serde_json::to_string_pretty(&json) {
-                                    let _ = std::fs::write(&settings_path, out);
-                                    results.push(format!("VS Code telemetry: {val}"));
-                                }
-                            }
-                        }
+            "nvidia" => {
+                // ── NVIDIA Telemetry Container service ──
+                let svc = "NvTelemetryContainer";
+                let action = if disable { "disabled" } else { "demand" };
+                if disable {
+                    let mut c = Command::new("sc");
+                    c.args(["stop", svc]).creation_flags(0x0800_0000);
+                    let _ = c.output().await;
+                }
+                let mut c = Command::new("sc");
+                c.args(["config", svc, "start=", action]).creation_flags(0x0800_0000);
+                if let Ok(o) = c.output().await {
+                    if o.status.success() {
+                        results.push(format!("{svc}: {}", if disable { "disabled" } else { "enabled" }));
                     } else {
-                        results.push("VS Code settings not found".into());
+                        results.push(format!("{svc}: not found (skip)"));
                     }
                 }
+                // Disable NVIDIA scheduled telemetry tasks
+                let tasks = ["NvTmMon_{B2FE1952-0186-46C3-BAEC-A80AA35AC5B8}", "NvTmRep_{B2FE1952-0186-46C3-BAEC-A80AA35AC5B8}"];
+                for task in &tasks {
+                    let act = if disable { "/Disable" } else { "/Enable" };
+                    let _ = Command::new("schtasks")
+                        .args(["/Change", "/TN", task, act])
+                        .creation_flags(0x0800_0000)
+                        .output().await;
+                }
+                // Registry: opt out of NVIDIA telemetry
+                let val = if disable { "0" } else { "1" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKLM\SOFTWARE\NVIDIA Corporation\NvControlPanel2\Client", "/v", "OptInOrOutPreference", "/t", "REG_DWORD", "/d", val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("NVIDIA telemetry: {}", if disable { "disabled" } else { "enabled" }));
+            }
+            "browsers" => {
+                // ── Microsoft Edge telemetry ──
+                let edge_keys = [
+                    ("MetricsReportingEnabled", if disable { "0" } else { "1" }),
+                    ("DiagnosticData", if disable { "0" } else { "2" }),
+                    ("SendSiteInfoToImproveServices", if disable { "0" } else { "1" }),
+                    ("PersonalizationReportingEnabled", if disable { "0" } else { "1" }),
+                ];
+                for (name, val) in &edge_keys {
+                    let _ = Command::new("reg")
+                        .args(["add", r"HKLM\SOFTWARE\Policies\Microsoft\Edge", "/v", name, "/t", "REG_DWORD", "/d", val, "/f"])
+                        .creation_flags(0x0800_0000)
+                        .output().await;
+                }
+                results.push(format!("Edge telemetry: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Google Chrome telemetry ──
+                let chrome_keys = [
+                    ("MetricsReportingEnabled", if disable { "0" } else { "1" }),
+                    ("SafeBrowsingExtendedReportingEnabled", if disable { "0" } else { "1" }),
+                    ("UrlKeyedAnonymizedDataCollectionEnabled", if disable { "0" } else { "1" }),
+                    ("SpellCheckServiceEnabled", if disable { "0" } else { "1" }),
+                ];
+                for (name, val) in &chrome_keys {
+                    let _ = Command::new("reg")
+                        .args(["add", r"HKLM\SOFTWARE\Policies\Google\Chrome", "/v", name, "/t", "REG_DWORD", "/d", val, "/f"])
+                        .creation_flags(0x0800_0000)
+                        .output().await;
+                }
+                results.push(format!("Chrome telemetry: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Firefox telemetry ──
+                let ff_script = if disable {
+                    r#"$ffProfiles = Get-ChildItem "$env:APPDATA\Mozilla\Firefox\Profiles" -Directory -ErrorAction SilentlyContinue; foreach($p in $ffProfiles){ $f = Join-Path $p.FullName 'user.js'; Add-Content -Path $f -Value 'user_pref("toolkit.telemetry.enabled", false);' -ErrorAction SilentlyContinue; Add-Content -Path $f -Value 'user_pref("datareporting.healthreport.uploadEnabled", false);' -ErrorAction SilentlyContinue }"#
+                } else {
+                    r#"$ffProfiles = Get-ChildItem "$env:APPDATA\Mozilla\Firefox\Profiles" -Directory -ErrorAction SilentlyContinue; foreach($p in $ffProfiles){ $f = Join-Path $p.FullName 'user.js'; if(Test-Path $f){ (Get-Content $f) | Where-Object { $_ -notmatch 'toolkit.telemetry.enabled|datareporting.healthreport.uploadEnabled' } | Set-Content $f -ErrorAction SilentlyContinue }}"#
+                };
+                let _ = Command::new("powershell")
+                    .args(["-NoProfile", "-Command", ff_script])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("Firefox telemetry: {}", if disable { "disabled" } else { "enabled" }));
+            }
+            "tracking" => {
+                // ── Identifiant publicitaire (Advertising ID) ──
+                let ad_val = if disable { "0" } else { "1" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo", "/v", "Enabled", "/t", "REG_DWORD", "/d", ad_val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                let ad_policy_val = if disable { "1" } else { "0" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo", "/v", "DisabledByGroupPolicy", "/t", "REG_DWORD", "/d", ad_policy_val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("Advertising ID: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Historique d'activité (Activity History + Timeline) ──
+                let activity_val = if disable { "0" } else { "1" };
+                for key in ["EnableActivityFeed", "PublishUserActivities", "UploadUserActivities"] {
+                    let _ = Command::new("reg")
+                        .args(["add", r"HKLM\SOFTWARE\Policies\Microsoft\Windows\System", "/v", key, "/t", "REG_DWORD", "/d", activity_val, "/f"])
+                        .creation_flags(0x0800_0000)
+                        .output().await;
+                }
+                results.push(format!("Activity History: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Localisation (Location tracking) ──
+                let loc_val = if disable { "1" } else { "0" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors", "/v", "DisableLocation", "/t", "REG_DWORD", "/d", loc_val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("Location tracking: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Cortana / Recherche connectée ──
+                let cortana_val = if disable { "0" } else { "1" };
+                for key in ["AllowCortana", "AllowSearchToUseLocation", "ConnectedSearchUseWeb"] {
+                    let _ = Command::new("reg")
+                        .args(["add", r"HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search", "/v", key, "/t", "REG_DWORD", "/d", cortana_val, "/f"])
+                        .creation_flags(0x0800_0000)
+                        .output().await;
+                }
+                results.push(format!("Cortana/Connected Search: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Données d'écriture manuscrite et saisie (Inking & Typing) ──
+                let ink_val = if disable { "0" } else { "1" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKCU\Software\Microsoft\Input\TIPC", "/v", "Enabled", "/t", "REG_DWORD", "/d", ink_val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("Inking & Typing data: {}", if disable { "disabled" } else { "enabled" }));
+
+                // ── Feedback & Diagnostics frequency ──
+                let feedback_val = if disable { "0" } else { "1" };
+                let _ = Command::new("reg")
+                    .args(["add", r"HKCU\Software\Microsoft\Siuf\Rules", "/v", "NumberOfSIUFInPeriod", "/t", "REG_DWORD", "/d", feedback_val, "/f"])
+                    .creation_flags(0x0800_0000)
+                    .output().await;
+                results.push(format!("Feedback frequency: {}", if disable { "disabled" } else { "enabled" }));
             }
             _ => return Err(format!("Unknown telemetry category: {category}")),
         }

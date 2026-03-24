@@ -1424,10 +1424,14 @@ function syncSettingsUI() {
     // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
     const tw = $('#telemetryWindows');
     const to = $('#telemetryOffice');
-    const tv = $('#telemetryVscode');
+    const tn = $('#telemetryNvidia');
+    const tb = $('#telemetryBrowsers');
+    const tt = $('#telemetryTracking');
     if (tw) tw.checked = !state.config.telemetry_windows;
     if (to) to.checked = !state.config.telemetry_office;
-    if (tv) tv.checked = !state.config.telemetry_vscode;
+    if (tn) tn.checked = !state.config.telemetry_nvidia;
+    if (tb) tb.checked = !state.config.telemetry_browsers;
+    if (tt) tt.checked = !state.config.telemetry_tracking;
 
     // Backup dir
     syncBackupDirUI();
@@ -1904,7 +1908,9 @@ function bindEvents() {
     };
     telemetryHandler($('#telemetryWindows'), 'windows', 'telemetry_windows');
     telemetryHandler($('#telemetryOffice'), 'office', 'telemetry_office');
-    telemetryHandler($('#telemetryVscode'), 'vscode', 'telemetry_vscode');
+    telemetryHandler($('#telemetryNvidia'), 'nvidia', 'telemetry_nvidia');
+    telemetryHandler($('#telemetryBrowsers'), 'browsers', 'telemetry_browsers');
+    telemetryHandler($('#telemetryTracking'), 'tracking', 'telemetry_tracking');
 
     // Backups
     const btnLoadBackups = $('#btnLoadBackups');

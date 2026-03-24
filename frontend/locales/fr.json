@@ -232,6 +232,7 @@
 
     "cool_boost_log_title": "Journal du Cool Boost",
     "cool_boost_powerplan_only": "Refroidissement actif activé : Power Plan Haute Performance + politique ACPI active (ventilateurs plus agressifs). Pour un contrôle direct des ventilateurs, installez LibreHardwareMonitor ou utilisez MSI Center / iCUE.",
+    "cool_boost_software_detected": "Logiciel de ventilation détecté ! Ouvrez-le et réglez les ventilateurs manuellement au maximum. Power Plan + politique ACPI active appliqués en complément.",
 
     "close_to_tray_title": "Fermer dans la barre des tâches",
     "close_to_tray_desc": "L'application reste active en arrière-plan lors de la fermeture",

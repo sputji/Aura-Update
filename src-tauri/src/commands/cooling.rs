@@ -140,7 +140,8 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
         }
     }
 
-    // Step 3.5: Detect third-party fan control software
+    // Step 3.5: Detect third-party fan control software (informational only)
+    let mut fan_software_detected = String::new();
     if !vendor_success {
         let sw_script = r#"
 $procs = @('MSICenterService','MSICenter','MSIAfterburner','DragonCenter',
@@ -159,10 +160,8 @@ if ($found.Count -gt 0) { $found -join ',' } else { 'NONE' }
         if let Ok(o) = &sw_result {
             let names = String::from_utf8_lossy(&o.stdout).trim().to_string();
             if names != "NONE" && !names.is_empty() {
-                log.push(format!("[Fan Software] Detected: {}", names));
-                // Some software (MSI Center, iCUE) already controls fans
-                // We treat this as success since fans ARE being managed
-                vendor_success = true;
+                log.push(format!("[Fan Software] Detected: {} (use it for direct fan control)", names));
+                fan_software_detected = names;
             }
         }
     }
@@ -294,7 +293,13 @@ try {
     }
 
     let message = if active {
-        if vendor_success { "cool_boost_started".into() } else { "cool_boost_powerplan_only".into() }
+        if vendor_success {
+            "cool_boost_started".into()
+        } else if !fan_software_detected.is_empty() {
+            "cool_boost_software_detected".into()
+        } else {
+            "cool_boost_powerplan_only".into()
+        }
     } else {
         "cool_boost_finished".into()
     };

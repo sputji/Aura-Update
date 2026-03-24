@@ -232,6 +232,7 @@
 
     "cool_boost_log_title": "Cool Boost Log",
     "cool_boost_powerplan_only": "Active cooling enabled: High Performance Power Plan + ACPI active policy (fans ramp up more aggressively). For direct fan control, install LibreHardwareMonitor or use MSI Center / iCUE.",
+    "cool_boost_software_detected": "Fan control software detected! Open it and manually set fans to maximum. Power Plan + ACPI active policy applied additionally.",
 
     "close_to_tray_title": "Close to Tray",
     "close_to_tray_desc": "The application stays active in the background when closed",

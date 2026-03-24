@@ -30,10 +30,10 @@ const $$ = (s) => document.querySelectorAll(s);
 /* ─── AI Provider Presets ──────────────────────────────────── */
 const AI_PRESETS = {
     gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.0-flash', needsKey: true  },
-    openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',   needsKey: true  },
-    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-2',        needsKey: true  },
-    ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',        needsKey: false },
-    auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'aura-ia',       needsKey: true  },
+    openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',    needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-2-latest',  needsKey: true  },
+    ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',         needsKey: false },
+    auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'rapide',         needsKey: true  },
 };
 
 /* ─── Helpers ──────────────────────────────────────────────── */
@@ -1752,6 +1752,8 @@ function bindEvents() {
                 if (!preset.needsKey) {
                     apiKeyInput.value = '';
                     apiKeyInput.placeholder = t('ai_no_key_needed') || 'Pas de clé nécessaire';
+                } else if (key === 'auraneo') {
+                    apiKeyInput.placeholder = 'publicKey:secretKey (depuis admin.auraneo.fr/apps)';
                 } else {
                     apiKeyInput.placeholder = t('api_key_placeholder') || 'Votre clé API';
                 }

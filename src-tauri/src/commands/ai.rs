@@ -119,36 +119,47 @@ pub async fn ai_analyze(
     let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
 
     let mut builder = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(if is_local { 120 } else if is_auraneo { 90 } else { 60 }));
 
-    if is_local {
+    // Accept invalid certs for local servers AND Aura-IA (rustls can fail on some certs)
+    if is_local || is_auraneo {
         builder = builder.danger_accept_invalid_certs(true);
     }
 
     let client = builder.build().map_err(|e| e.to_string())?;
 
-    let mut req = client
-        .post(&endpoint)
-        .header("Content-Type", "application/json")
-        .json(&body);
+    // ── Send with retry on connection error ──
+    let send_request = |client: &reqwest::Client| {
+        let mut req = client
+            .post(&endpoint)
+            .header("Content-Type", "application/json")
+            .json(&body);
 
-    // ── Authorization headers ──
-    if !cfg.ai_api_key.is_empty() {
-        if is_auraneo && cfg.ai_api_key.contains(':') {
-            // Aura-IA: "publicKey:secretKey" → X-Api-Key + X-Api-Secret headers
-            let parts: Vec<&str> = cfg.ai_api_key.splitn(2, ':').collect();
-            req = req.header("X-Api-Key", parts[0])
-                     .header("X-Api-Secret", parts[1]);
-        } else {
-            // All providers: standard Bearer token (OpenAI, Gemini, Grok, Aura-IA fallback)
-            req = req.header("Authorization", format!("Bearer {}", cfg.ai_api_key));
+        // Authorization headers
+        if !cfg.ai_api_key.is_empty() {
+            if is_auraneo && cfg.ai_api_key.contains(':') {
+                let parts: Vec<&str> = cfg.ai_api_key.splitn(2, ':').collect();
+                req = req.header("X-Api-Key", parts[0])
+                         .header("X-Api-Secret", parts[1]);
+            } else {
+                req = req.header("Authorization", format!("Bearer {}", cfg.ai_api_key));
+            }
         }
-    }
+        req
+    };
 
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    // First attempt
+    let resp = match send_request(&client).send().await {
+        Ok(r) => r,
+        Err(e) if e.is_connect() || e.is_timeout() => {
+            // Retry once on connection/timeout errors
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            send_request(&client).send().await
+                .map_err(|e2| format!("Connexion impossible après 2 tentatives: {}", e2))?
+        }
+        Err(e) => return Err(format!("Erreur réseau: {}", e)),
+    };
 
     if !resp.status().is_success() {
         let status = resp.status();

@@ -267,15 +267,131 @@ if ($found.Count -gt 0) { $found -join ',' } else { 'NONE' }
         log.push("[Cooling Policy] Reset to Passive (normal)".into());
     }
 
-    // Step 6: Read CPU temperature for user feedback
+    // Step 5.5: NVIDIA GPU — max power + performance mode + fan control
+    if active {
+        let gpu_script = r#"
+$nvsmi = $null
+$paths = @(
+    "$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
+    "$env:windir\System32\nvidia-smi.exe",
+    "nvidia-smi.exe"
+)
+foreach ($p in $paths) {
+    if (Get-Command $p -ErrorAction SilentlyContinue) { $nvsmi = $p; break }
+}
+if (-not $nvsmi) { Write-Output "GPU:NO_NVSMI"; exit 0 }
+
+$out = @()
+
+# Set persistence mode
+& $nvsmi -pm 1 2>$null | Out-Null
+$out += "persistence=ON"
+
+# Get max power limit and set it
+try {
+    $info = & $nvsmi --query-gpu=power.max_limit --format=csv,noheader,nounits 2>$null
+    $maxW = [math]::Floor([double]($info.Trim()))
+    if ($maxW -gt 0) {
+        & $nvsmi -pl $maxW 2>$null | Out-Null
+        $out += "power_limit=${maxW}W"
+    }
+} catch { $out += "power_limit=SKIP" }
+
+# Force P0 performance state (max clocks)
+try {
+    $clocks = & $nvsmi --query-gpu=clocks.max.graphics,clocks.max.memory --format=csv,noheader,nounits 2>$null
+    if ($clocks -match '(\d+),\s*(\d+)') {
+        $gc = $matches[1]; $mc = $matches[2]
+        & $nvsmi --applications-clocks="$mc,$gc" 2>$null | Out-Null
+        $out += "clocks=${gc}MHz/${mc}MHz"
+    }
+} catch { $out += "clocks=SKIP" }
+
+# GPU fan speed to 100% (if supported by driver)
+try {
+    $fanResult = & $nvsmi --fan-speed=100 2>&1
+    if ($LASTEXITCODE -eq 0) { $out += "fans=100%" }
+    else { $out += "fans=AUTO(driver)" }
+} catch { $out += "fans=AUTO(driver)" }
+
+# Set GPU performance mode via registry (prefer max performance)
+try {
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"
+    if (Test-Path $regPath) {
+        Set-ItemProperty -Path $regPath -Name "PerfLevelSrc" -Value 0x2222 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $regPath -Name "PowerMizerEnable" -Value 1 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $regPath -Name "PowerMizerLevel" -Value 1 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $regPath -Name "PowerMizerLevelAC" -Value 1 -ErrorAction SilentlyContinue
+        $out += "registry=MAX_PERF"
+    }
+} catch {}
+
+Write-Output ("GPU:" + ($out -join ";"))
+"#;
+        let gpu_result = Command::new("powershell")
+            .args(["-NoProfile", "-Command", gpu_script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(o) = &gpu_result {
+            let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if out.starts_with("GPU:") {
+                let details = &out[4..];
+                if details == "NO_NVSMI" {
+                    log.push("[NVIDIA GPU] nvidia-smi non trouvé".into());
+                } else {
+                    log.push(format!("[NVIDIA GPU] {}", details));
+                }
+            }
+        }
+    } else {
+        // Reset GPU to default
+        let gpu_reset = r#"
+$nvsmi = $null
+$paths = @("$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe","$env:windir\System32\nvidia-smi.exe","nvidia-smi.exe")
+foreach ($p in $paths) { if (Get-Command $p -ErrorAction SilentlyContinue) { $nvsmi = $p; break } }
+if ($nvsmi) {
+    & $nvsmi --reset-applications-clocks 2>$null | Out-Null
+    & $nvsmi -pm 0 2>$null | Out-Null
+    try { & $nvsmi --fan-speed=0 2>$null | Out-Null } catch {}
+    try {
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"
+        if (Test-Path $regPath) {
+            Set-ItemProperty -Path $regPath -Name "PerfLevelSrc" -Value 0x3322 -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $regPath -Name "PowerMizerLevel" -Value 0 -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $regPath -Name "PowerMizerLevelAC" -Value 0 -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    Write-Output "GPU:RESET"
+}
+"#;
+        let _ = Command::new("powershell")
+            .args(["-NoProfile", "-Command", gpu_reset])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        log.push("[NVIDIA GPU] Reset to default".into());
+    }
+
+    // Step 6: Read CPU + GPU temperature for user feedback
     if active {
         let temp_script = r#"
+$cpuTemp = "N/A"
+$gpuTemp = "N/A"
 try {
     $t = Get-CimInstance -Namespace root/WMI -Class MSAcpi_ThermalZoneTemperature -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty CurrentTemperature
-    $celsius = [math]::Round(($t - 2732) / 10, 1)
-    Write-Output "TEMP:$celsius"
-} catch { Write-Output "TEMP:N/A" }
+    $cpuTemp = [math]::Round(($t - 2732) / 10, 1)
+} catch {}
+try {
+    $nvsmi = $null
+    foreach ($p in @("$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe","$env:windir\System32\nvidia-smi.exe","nvidia-smi.exe")) {
+        if (Get-Command $p -ErrorAction SilentlyContinue) { $nvsmi = $p; break }
+    }
+    if ($nvsmi) {
+        $gt = & $nvsmi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>$null
+        if ($gt) { $gpuTemp = $gt.Trim() }
+    }
+} catch {}
+Write-Output "CPU:$cpuTemp|GPU:$gpuTemp"
 "#;
         let temp_result = Command::new("powershell")
             .args(["-NoProfile", "-Command", temp_script])
@@ -283,10 +399,19 @@ try {
             .output();
         if let Ok(o) = &temp_result {
             let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if out.starts_with("TEMP:") {
-                let temp = &out[5..];
-                if temp != "N/A" {
-                    log.push(format!("[CPU Temp] {}°C", temp));
+            if out.contains('|') {
+                let parts: Vec<&str> = out.split('|').collect();
+                if let Some(cpu_part) = parts.first() {
+                    if cpu_part.starts_with("CPU:") {
+                        let t = &cpu_part[4..];
+                        if t != "N/A" { log.push(format!("[CPU Temp] {}°C", t)); }
+                    }
+                }
+                if let Some(gpu_part) = parts.get(1) {
+                    if gpu_part.starts_with("GPU:") {
+                        let t = &gpu_part[4..];
+                        if t != "N/A" { log.push(format!("[GPU Temp] {}°C", t)); }
+                    }
                 }
             }
         }

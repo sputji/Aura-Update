@@ -31,7 +31,7 @@ const $$ = (s) => document.querySelectorAll(s);
 const AI_PRESETS = {
     gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', needsKey: true  },
     openai:  { endpoint: 'https://api.openai.com',  model: 'gpt-4o-mini',         needsKey: true  },
-    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-3-mini-fast',    needsKey: true  },
+    grok:    { endpoint: 'https://api.x.ai',         model: 'grok-4-1-fast-non-reasoning', needsKey: true  },
     ollama:  { endpoint: 'http://localhost:11434',    model: 'llama3',              needsKey: false },
     auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'rapide',              needsKey: true  },
 };

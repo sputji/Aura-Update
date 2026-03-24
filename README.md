@@ -117,6 +117,22 @@ Toute redistribution non autorisée est interdite.
 
 ---
 
+## 📋 Changelog v2.2.5
+
+- 🤖 **Sélection dynamique des modèles IA** — Le champ texte est remplacé par un menu déroulant qui charge automatiquement les vrais modèles disponibles depuis l'API du fournisseur (OpenAI, Gemini, Grok, Ollama, Aura-IA). Bouton 🔄 pour rafraîchir.
+- 🔒 **Protection Vie Privée** — Refonte complète du contrôle de télémétrie en 5 catégories : Windows (DiagTrack, WerSvc), Office, NVIDIA (NvTelemetryContainer, tâches planifiées), Navigateurs (Edge, Chrome, Firefox), Pistage publicitaire (Advertising ID, Activity History, Localisation, Cortana, Inking & Typing).
+- 🚀 **Turbo Mode Ultra** — Arrêt de 7 services Windows, plan d'alimentation Ultimate Performance, CPU 100%, GPU max perf NVIDIA, effets visuels désactivés, résolution timer 1ms, optimisation réseau Nagle.
+- ❄️ **Cool Boost GPU** — Support NVIDIA via nvidia-smi : persistence mode, power limit, clocks max, contrôle ventilateurs, registre PowerMizer.
+- 🤖 **Grok v4** — Migration vers grok-4-1-fast-non-reasoning (nouveau modèle xAI disponible).
+- 🔗 **Aura-IA fiable** — Tolérance TLS pour auraneo.fr, retry automatique sur erreur de connexion/timeout, fallback 3 modes (Rapide/Réflexions/Intelligent) si le serveur ne répond pas.
+- ✅ **Activation IA en 1 clic** — Correction du bug qui exigeait 2 clics pour activer l'IA la première fois. Le consentement active maintenant directement le toggle.
+- 🎓 **Tutorial premier lancement** — Les zones montrées par le tutoriel sont maintenant clairement visibles. Le contenu réel de l'élément est affiché, le reste est assombri.
+- 💾 **Persistance des réglages** — Toutes les préférences (Protection Vie Privée, options IA, etc.) sont correctement sauvegardées et restaurées au redémarrage.
+- 🎮 **Détection GPU réelle** — Filtrage des adaptateurs virtuels (Parsec, Remote Desktop, RDP) pour afficher le vrai GPU matériel.
+- 🌍 **i18n complet** — Traductions FR/EN mises à jour pour toutes les nouvelles fonctionnalités.
+
+---
+
 ## 📋 Changelog v2.2.4
 
 - 🎮 **Détection GPU réelle** — Filtrage des adaptateurs virtuels (Parsec, Remote Desktop, RDP, Microsoft Basic Display) pour afficher le vrai GPU matériel avec fallback automatique.

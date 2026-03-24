@@ -212,6 +212,7 @@ pub fn run() {
             commands::ai::ai_is_available,
             commands::ai::configure_ai,
             commands::ai::ai_analyze,
+            commands::ai::list_ai_models,
             // ── Scheduler ────────────────────────────────────
             commands::scheduler::get_schedule,
             commands::scheduler::set_schedule,

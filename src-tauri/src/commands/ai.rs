@@ -7,6 +7,205 @@ pub struct AiRequest {
     pub context_type: String,  // "update_error", "cleanup_advice", "general"
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiModelInfo {
+    pub id: String,
+    pub name: String,
+}
+
+/// Fetch available models for a given provider.
+/// `provider`: "gemini", "openai", "grok", "ollama", "auraneo", "custom"
+/// `endpoint`: the API endpoint URL
+/// `api_key`: the API key (may be empty for local)
+#[tauri::command]
+pub async fn list_ai_models(
+    provider: String,
+    endpoint: String,
+    api_key: String,
+) -> Result<Vec<AiModelInfo>, String> {
+    let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
+    let is_auraneo = endpoint.contains("auraneo.fr") || provider == "auraneo";
+
+    let mut builder = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(8))
+        .timeout(std::time::Duration::from_secs(15));
+
+    if is_local || is_auraneo {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+
+    let client = builder.build().map_err(|e| e.to_string())?;
+
+    match provider.as_str() {
+        "ollama" => {
+            // Ollama: GET /api/tags
+            let url = format!("{}/api/tags", endpoint.trim_end_matches('/'));
+            let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+            if !resp.status().is_success() {
+                return Err(format!("Ollama error: {}", resp.status()));
+            }
+            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            let models = json.get("models")
+                .and_then(|m| m.as_array())
+                .map(|arr| arr.iter().filter_map(|m| {
+                    let name = m.get("name")?.as_str()?.to_string();
+                    Some(AiModelInfo { id: name.clone(), name })
+                }).collect::<Vec<_>>())
+                .unwrap_or_default();
+            Ok(models)
+        }
+        "auraneo" => {
+            // Aura-IA: GET /api/agents/modes
+            let base = endpoint.trim_end_matches('/');
+            let base = if base.ends_with("/api/agents/chat") {
+                &base[..base.len() - "/chat".len()]
+            } else if base.ends_with("/api/agents") {
+                base
+            } else {
+                base
+            };
+            let url = format!("{}/api/agents/modes", base);
+            let mut req = client.get(&url);
+            if !api_key.is_empty() {
+                if api_key.contains(':') {
+                    let parts: Vec<&str> = api_key.splitn(2, ':').collect();
+                    req = req.header("X-Api-Key", parts[0]).header("X-Api-Secret", parts[1]);
+                } else {
+                    req = req.header("Authorization", format!("Bearer {}", api_key));
+                }
+            }
+            let resp = req.send().await.map_err(|e| e.to_string())?;
+            if !resp.status().is_success() {
+                // Fallback: return hardcoded modes
+                return Ok(vec![
+                    AiModelInfo { id: "rapide".into(), name: "Rapide (Qwen 7B)".into() },
+                    AiModelInfo { id: "reflexions".into(), name: "Réflexions (Qwen 7B)".into() },
+                    AiModelInfo { id: "intelligent".into(), name: "Intelligent (DeepSeek 7B)".into() },
+                ]);
+            }
+            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            // Try to parse as array of modes
+            let models = if let Some(arr) = json.as_array() {
+                arr.iter().filter_map(|m| {
+                    let id = m.get("agentId").or(m.get("id")).and_then(|v| v.as_str())?.to_string();
+                    let name = m.get("name").or(m.get("label")).and_then(|v| v.as_str())
+                        .unwrap_or(&id).to_string();
+                    Some(AiModelInfo { id, name })
+                }).collect()
+            } else if let Some(modes) = json.get("modes").and_then(|m| m.as_array()) {
+                modes.iter().filter_map(|m| {
+                    let id = m.get("agentId").or(m.get("id")).and_then(|v| v.as_str())?.to_string();
+                    let name = m.get("name").or(m.get("label")).and_then(|v| v.as_str())
+                        .unwrap_or(&id).to_string();
+                    Some(AiModelInfo { id, name })
+                }).collect()
+            } else {
+                // Fallback hardcoded
+                vec![
+                    AiModelInfo { id: "rapide".into(), name: "Rapide (Qwen 7B)".into() },
+                    AiModelInfo { id: "reflexions".into(), name: "Réflexions (Qwen 7B)".into() },
+                    AiModelInfo { id: "intelligent".into(), name: "Intelligent (DeepSeek 7B)".into() },
+                ]
+            };
+            Ok(models)
+        }
+        "gemini" | "openai" | "grok" | _ => {
+            // OpenAI-compatible: GET /v1/models (also works for Gemini, xAI, etc.)
+            let base = endpoint.trim_end_matches('/');
+            let url = if base.contains("/v1beta/") || base.contains("/v2beta/") {
+                // Gemini: use the Google-specific models endpoint
+                format!("{}/models", base.split("/openai").next().unwrap_or(base))
+            } else if base.ends_with("/v1") {
+                format!("{}/models", base)
+            } else if base.contains("/v1/") {
+                format!("{}/models", base.split("/v1/").next().map(|b| format!("{}/v1", b)).unwrap_or(base.to_string()))
+            } else {
+                format!("{}/v1/models", base)
+            };
+
+            let mut req = client.get(&url);
+            if !api_key.is_empty() {
+                req = req.header("Authorization", format!("Bearer {}", api_key));
+            }
+            let resp = match req.send().await {
+                Ok(r) => r,
+                Err(_) => {
+                    // Return provider-specific hardcoded models as fallback
+                    return Ok(get_fallback_models(&provider));
+                }
+            };
+            if !resp.status().is_success() {
+                return Ok(get_fallback_models(&provider));
+            }
+            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+            let mut models: Vec<AiModelInfo> = if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+                // OpenAI / xAI format: { data: [{ id: "model-name", ... }] }
+                data.iter().filter_map(|m| {
+                    let id = m.get("id")?.as_str()?.to_string();
+                    Some(AiModelInfo { id: id.clone(), name: id })
+                }).collect()
+            } else if let Some(models_arr) = json.get("models").and_then(|m| m.as_array()) {
+                // Gemini format: { models: [{ name: "models/gemini-...", displayName: "..." }] }
+                models_arr.iter().filter_map(|m| {
+                    let full_name = m.get("name")?.as_str()?;
+                    let id = full_name.strip_prefix("models/").unwrap_or(full_name).to_string();
+                    let display = m.get("displayName").and_then(|d| d.as_str()).unwrap_or(&id).to_string();
+                    Some(AiModelInfo { id, name: display })
+                }).collect()
+            } else {
+                get_fallback_models(&provider)
+            };
+
+            // Filter: only keep chat/text models, not image/embedding/tts
+            models.retain(|m| {
+                let id = m.id.to_lowercase();
+                !id.contains("embed") && !id.contains("tts") && !id.contains("whisper")
+                && !id.contains("dall") && !id.contains("image") && !id.contains("video")
+                && !id.contains("moderation")
+            });
+
+            // Sort by name
+            models.sort_by(|a, b| a.name.cmp(&b.name));
+
+            if models.is_empty() {
+                return Ok(get_fallback_models(&provider));
+            }
+            Ok(models)
+        }
+    }
+}
+
+fn get_fallback_models(provider: &str) -> Vec<AiModelInfo> {
+    match provider {
+        "gemini" => vec![
+            AiModelInfo { id: "gemini-2.5-flash".into(), name: "Gemini 2.5 Flash".into() },
+            AiModelInfo { id: "gemini-2.5-pro".into(), name: "Gemini 2.5 Pro".into() },
+            AiModelInfo { id: "gemini-2.0-flash-lite".into(), name: "Gemini 2.0 Flash Lite".into() },
+        ],
+        "openai" => vec![
+            AiModelInfo { id: "gpt-4o-mini".into(), name: "GPT-4o Mini".into() },
+            AiModelInfo { id: "gpt-4o".into(), name: "GPT-4o".into() },
+            AiModelInfo { id: "gpt-4.1-mini".into(), name: "GPT-4.1 Mini".into() },
+            AiModelInfo { id: "gpt-4.1-nano".into(), name: "GPT-4.1 Nano".into() },
+            AiModelInfo { id: "gpt-3.5-turbo".into(), name: "GPT-3.5 Turbo".into() },
+        ],
+        "grok" => vec![
+            AiModelInfo { id: "grok-4-1-fast-non-reasoning".into(), name: "Grok 4.1 Fast".into() },
+            AiModelInfo { id: "grok-4-1-fast-reasoning".into(), name: "Grok 4.1 Fast (Reasoning)".into() },
+            AiModelInfo { id: "grok-4.20-0309-non-reasoning".into(), name: "Grok 4.20".into() },
+        ],
+        "ollama" => vec![
+            AiModelInfo { id: "llama3".into(), name: "Llama 3".into() },
+            AiModelInfo { id: "mistral".into(), name: "Mistral".into() },
+            AiModelInfo { id: "neural-chat".into(), name: "Neural Chat".into() },
+            AiModelInfo { id: "codellama".into(), name: "Code Llama".into() },
+            AiModelInfo { id: "phi3".into(), name: "Phi-3".into() },
+        ],
+        _ => vec![],
+    }
+}
+
 #[tauri::command]
 pub fn ai_is_available(state: tauri::State<'_, AppState>) -> bool {
     let cfg = state.config.lock().unwrap();

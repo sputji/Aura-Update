@@ -465,7 +465,13 @@
                         </div>
                         <div class="input-group">
                             <label data-i18n="ai_model">Modèle</label>
-                            <input type="text" id="aiModelInput" placeholder="aura-ia" class="input">
+                            <div class="model-select-row">
+                                <select id="aiModelSelect" class="input">
+                                    <option value="">-- Choisir un modèle --</option>
+                                </select>
+                                <button id="btnRefreshModels" class="btn btn-sm btn-icon" title="Rafraîchir les modèles">🔄</button>
+                            </div>
+                            <small class="ai-hint" data-i18n="ai_model_hint">Les modèles se chargent automatiquement selon le fournisseur</small>
                         </div>
                         <div class="input-group">
                             <label data-i18n="ai_apikey">Clé API</label>

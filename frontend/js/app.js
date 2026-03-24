@@ -36,6 +36,73 @@ const AI_PRESETS = {
     auraneo: { endpoint: 'https://ia.auraneo.fr',    model: 'rapide',              needsKey: true  },
 };
 
+/* ─── AI Model Loader ──────────────────────────────────────── */
+let _modelsLoading = false;
+async function loadAIModels(providerKey, forceRefresh = false) {
+    const sel = $('#aiModelSelect');
+    if (!sel) return;
+
+    const preset = AI_PRESETS[providerKey];
+    const endpoint = preset ? preset.endpoint : ($('#aiEndpointInput')?.value || '').trim();
+    const apiKey = ($('#aiApiKey')?.value || '').trim();
+
+    if (!endpoint && providerKey === 'custom') {
+        sel.innerHTML = '<option value="">' + (t('ai_model_custom_hint') || '-- Saisissez un endpoint --') + '</option>';
+        return;
+    }
+
+    // Show loading state
+    _modelsLoading = true;
+    const refreshBtn = $('#btnRefreshModels');
+    if (refreshBtn) refreshBtn.classList.add('spinning');
+    sel.disabled = true;
+    const prevVal = sel.value || (preset ? preset.model : '') || (state.config?.ai_model || '');
+    sel.innerHTML = '<option value="">' + (t('ai_loading_models') || 'Chargement...') + '</option>';
+
+    try {
+        const models = await invoke('list_ai_models', {
+            provider: providerKey || 'custom',
+            endpoint: endpoint,
+            apiKey: apiKey,
+        });
+
+        sel.innerHTML = '';
+        if (models.length === 0) {
+            sel.innerHTML = '<option value="">' + (t('ai_no_models') || 'Aucun modèle trouvé') + '</option>';
+        } else {
+            for (const m of models) {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name || m.id;
+                sel.appendChild(opt);
+            }
+            // Re-select previous value or preset default
+            if (prevVal && [...sel.options].some(o => o.value === prevVal)) {
+                sel.value = prevVal;
+            } else if (preset && [...sel.options].some(o => o.value === preset.model)) {
+                sel.value = preset.model;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load models:', e);
+        sel.innerHTML = '';
+        // Fallback: use preset model as only option
+        if (preset) {
+            const opt = document.createElement('option');
+            opt.value = preset.model;
+            opt.textContent = preset.model;
+            sel.appendChild(opt);
+            sel.value = preset.model;
+        } else {
+            sel.innerHTML = '<option value="">' + (t('ai_model_error') || 'Erreur de chargement') + '</option>';
+        }
+    } finally {
+        sel.disabled = false;
+        _modelsLoading = false;
+        if (refreshBtn) refreshBtn.classList.remove('spinning');
+    }
+}
+
 /* ─── Helpers ──────────────────────────────────────────────── */
 function t(key) { return state.i18n[key] || key; }
 
@@ -1322,7 +1389,6 @@ function syncSettingsUI() {
     $('#aiConfig').classList.toggle('hidden', !state.config.ai_enabled);
     $('#aiApiKey').value = state.config.ai_api_key || '';
     $('#aiEndpointInput').value = state.config.ai_endpoint || '';
-    $('#aiModelInput').value = state.config.ai_model || '';
 
     // Detect provider from saved endpoint
     const ep = (state.config.ai_endpoint || '').toLowerCase();
@@ -1332,10 +1398,28 @@ function syncSettingsUI() {
     }
     const sel = $('#aiProviderSelect');
     if (sel) sel.value = detectedProvider;
-    // Lock endpoint for presets, model always editable
+    // Lock endpoint for presets
     const isPreset = detectedProvider !== 'custom';
     const endpointInput = $('#aiEndpointInput');
     if (endpointInput) endpointInput.readOnly = isPreset;
+
+    // Load models for detected provider, then set saved model
+    loadAIModels(detectedProvider).then(() => {
+        const modelSel = $('#aiModelSelect');
+        if (modelSel && state.config.ai_model) {
+            // If saved model exists in list, select it
+            if ([...modelSel.options].some(o => o.value === state.config.ai_model)) {
+                modelSel.value = state.config.ai_model;
+            } else if (state.config.ai_model) {
+                // Add it as custom option
+                const opt = document.createElement('option');
+                opt.value = state.config.ai_model;
+                opt.textContent = state.config.ai_model;
+                modelSel.appendChild(opt);
+                modelSel.value = state.config.ai_model;
+            }
+        }
+    });
 
     // Telemetry granular toggles (checked = telemetry ACTIVE, so invert for "disable")
     const tw = $('#telemetryWindows');
@@ -1429,7 +1513,7 @@ async function saveAIConfig() {
     const provider = $('#aiProviderSelect')?.value || 'custom';
     const preset = AI_PRESETS[provider];
     const endpoint = $('#aiEndpointInput').value.trim() || (preset ? preset.endpoint : '');
-    const model = $('#aiModelInput').value.trim() || (preset ? preset.model : '');
+    const model = $('#aiModelSelect')?.value?.trim() || (preset ? preset.model : '');
     const apiKey = $('#aiApiKey').value.trim();
     const enabled = $('#aiToggle').checked;
     const consent = state.config.ai_consent_given;
@@ -1739,13 +1823,10 @@ function bindEvents() {
             const key = providerSel.value;
             const preset = AI_PRESETS[key];
             const endpointInput = $('#aiEndpointInput');
-            const modelInput = $('#aiModelInput');
             const apiKeyInput = $('#aiApiKey');
             if (preset) {
                 endpointInput.value = preset.endpoint;
-                modelInput.value = preset.model;
                 endpointInput.readOnly = true;
-                modelInput.readOnly = false;
                 if (!preset.needsKey) {
                     apiKeyInput.value = '';
                     apiKeyInput.placeholder = t('ai_no_key_needed') || 'Pas de clé nécessaire';
@@ -1757,11 +1838,20 @@ function bindEvents() {
             } else {
                 // Custom: clear and unlock
                 endpointInput.value = '';
-                modelInput.value = '';
                 endpointInput.readOnly = false;
-                modelInput.readOnly = false;
                 apiKeyInput.placeholder = t('api_key_placeholder') || 'Votre clé API';
             }
+            // Load models for the new provider
+            loadAIModels(key);
+        });
+    }
+
+    // Refresh models button
+    const refreshBtn = $('#btnRefreshModels');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            const key = $('#aiProviderSelect')?.value || 'custom';
+            loadAIModels(key, true);
         });
     }
 

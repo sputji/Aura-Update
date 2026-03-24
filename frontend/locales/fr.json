@@ -55,6 +55,7 @@
     "saved": "Enregistré",
     "error": "Erreur",
     "error_scan": "Erreur lors de l'analyse",
+    "error_timeout_updates": "La recherche de mises \u00e0 jour a expir\u00e9. R\u00e9essayez.",
     "error_install": "Erreur d'installation",
     "error_clean": "Erreur de nettoyage",
     "error_load": "Erreur de chargement",

@@ -9,3 +9,4 @@ progress/
 # Rust / Tauri build artifacts
 src-tauri/target/
 src-tauri/gen/schemas/
+_temp_release_notes.md

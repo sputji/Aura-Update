@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePackage {
@@ -22,8 +23,17 @@ pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
 
     #[cfg(windows)]
     {
-        let (winget, wupd) = tokio::join!(check_winget(), check_windows_update());
+        // Timeout both checks — WU COM and winget can hang indefinitely
+        let winget_fut = tokio::time::timeout(Duration::from_secs(30), check_winget());
+        let wupd_fut = tokio::time::timeout(Duration::from_secs(45), check_windows_update());
+        let (winget_res, wupd_res) = tokio::join!(winget_fut, wupd_fut);
+
+        // winget: use result or empty on timeout
+        let winget = winget_res.unwrap_or_default();
         all.extend(winget);
+
+        // Windows Update: use result or empty on timeout
+        let wupd = wupd_res.unwrap_or_default();
 
         // If a reboot is pending, skip re-listing WU items and add a single notification
         if is_reboot_pending() {
@@ -187,6 +197,7 @@ async fn check_winget() -> Vec<UpdatePackage> {
     let out = Command::new("cmd")
         .args(["/c", "chcp 65001 > nul && winget upgrade --include-unknown --accept-source-agreements --accept-package-agreements"])
         .creation_flags(0x0800_0000)
+        .kill_on_drop(true)
         .output()
         .await;
 
@@ -243,28 +254,49 @@ fn parse_winget(text: &str) -> Vec<UpdatePackage> {
 
 #[cfg(windows)]
 async fn check_windows_update() -> Vec<UpdatePackage> {
+    // Ensure wuauserv + BITS are running (may have been stopped by Turbo Mode)
+    let _ = Command::new("sc")
+        .args(["start", "wuauserv"])
+        .creation_flags(0x0800_0000)
+        .output()
+        .await;
+    let _ = Command::new("sc")
+        .args(["start", "BITS"])
+        .creation_flags(0x0800_0000)
+        .output()
+        .await;
+    // Brief pause so the service can initialize
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     let ps = r#"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$s = New-Object -ComObject Microsoft.Update.Session
-$q = $s.CreateUpdateSearcher()
-try { $r = $q.Search("IsInstalled=0") } catch { exit 0 }
-$r.Updates | ForEach-Object {
-    $crit = if ($_.MsrcSeverity -eq 'Critical' -or $_.IsMandatory) { 'critical' } else { 'system' }
-    $ver = if ($_.Identity.UpdateID) { $_.Identity.UpdateID.Substring(0,8) } else { 'latest' }
-    Write-Output "$($_.Title)|$ver|$crit"
+# Run the search in a background job with a 40s timeout
+$job = Start-Job -ScriptBlock {
+    $s = New-Object -ComObject Microsoft.Update.Session
+    $q = $s.CreateUpdateSearcher()
+    try { $r = $q.Search("IsInstalled=0") } catch { return }
+    $r.Updates | ForEach-Object {
+        $crit = if ($_.MsrcSeverity -eq 'Critical' -or $_.IsMandatory) { 'critical' } else { 'system' }
+        $ver = if ($_.Identity.UpdateID) { $_.Identity.UpdateID.Substring(0,8) } else { 'latest' }
+        "$($_.Title)|$ver|$crit"
+    }
 }
+$done = $job | Wait-Job -Timeout 40
+if ($done) { Receive-Job $job } else { Stop-Job $job }
+Remove-Job $job -Force -ErrorAction SilentlyContinue
 "#;
     let out = Command::new("powershell")
         .args(["-NoProfile", "-Command", ps])
         .creation_flags(0x0800_0000)
+        .kill_on_drop(true)
         .output()
         .await;
 
     match out {
-        Ok(o) if o.status.success() => {
+        Ok(o) => {
             let text = String::from_utf8_lossy(&o.stdout);
             text.lines()
-                .filter(|l| !l.trim().is_empty())
+                .filter(|l| !l.trim().is_empty() && l.contains('|'))
                 .enumerate()
                 .map(|(i, l)| {
                     let parts: Vec<&str> = l.splitn(3, '|').collect();

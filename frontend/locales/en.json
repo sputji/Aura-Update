@@ -55,6 +55,7 @@
     "saved": "Saved",
     "error": "Error",
     "error_scan": "Scan error",
+    "error_timeout_updates": "Update search timed out. Please try again.",
     "error_install": "Install error",
     "error_clean": "Clean error",
     "error_load": "Load error",

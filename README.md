@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.3** — Dernière version stable
+> **v2.2.5** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />

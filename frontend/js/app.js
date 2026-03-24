@@ -527,10 +527,19 @@ async function scanUpdates() {
     $('#btnScan').disabled = true;
 
     try {
-        state.updates = await invoke('check_updates');
+        state.updates = await Promise.race([
+            invoke('check_updates'),
+            new Promise((_, reject) => setTimeout(() => reject('timeout'), 60000))
+        ]);
         renderUpdateList();
     } catch (e) {
-        showToast(t('error_scan') + ': ' + e, 'error');
+        if (e === 'timeout') {
+            showToast(t('error_timeout_updates') || 'La recherche de mises à jour a expiré. Réessayez.', 'error');
+            state.updates = [];
+            renderUpdateList();
+        } else {
+            showToast(t('error_scan') + ': ' + e, 'error');
+        }
     } finally {
         setBusy(false);
         $('#btnScan').disabled = false;
@@ -2305,13 +2314,18 @@ async function init() {
 
         // ── Auto-scan during splash ──────────────────────────
         splashStatus(t('scanning'));
+
+        // Wrap each invoke with a timeout to prevent splash freeze
+        const withTimeout = (promise, ms) =>
+            Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject('timeout'), ms))]);
+
         const autoScanResults = await Promise.allSettled([
-            invoke('get_health_score'),
-            invoke('check_updates'),
-            invoke('scan_cleanup'),
-            invoke('get_startup_items'),
-            invoke('get_heavy_processes'),
-            invoke('get_system_vitals'),
+            withTimeout(invoke('get_health_score'), 15000),
+            withTimeout(invoke('check_updates'), 60000),
+            withTimeout(invoke('scan_cleanup'), 15000),
+            withTimeout(invoke('get_startup_items'), 10000),
+            withTimeout(invoke('get_heavy_processes'), 10000),
+            withTimeout(invoke('get_system_vitals'), 10000),
         ]);
 
         // Health score

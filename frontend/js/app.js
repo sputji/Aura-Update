@@ -716,9 +716,20 @@ function renderCleanupList() {
         </span>
     </div>`;
 
+    html += `<div class="cleanup-summary" style="margin-top:8px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+        <span class="cleanup-summary-text" id="cleanupSelectedInfo">${t('selected') || 'Sélection'}: ${state.cleanup.items.length}/${state.cleanup.items.length}</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btnCleanupSelectAll" class="btn btn-sm btn-secondary">${t('btn_select_all')}</button>
+            <button id="btnCleanupDeselectAll" class="btn btn-sm btn-secondary">${t('btn_deselect_all')}</button>
+        </div>
+    </div>`;
+
     html += state.cleanup.items.map(item => `
         <div class="cleanup-item">
-            <span class="cleanup-item-icon">${item.category === 'temp' ? '🗑️' : item.category === 'cache' ? '📦' : '📂'}</span>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" checked data-clean-path="${escapeHtml(item.path)}">
+                <span class="cleanup-item-icon">${item.category === 'temp' ? '🗑️' : item.category === 'cache' ? '📦' : '📂'}</span>
+            </label>
             <div class="cleanup-item-info">
                 <div class="cleanup-item-name">${escapeHtml(item.description)}</div>
                 <div class="cleanup-item-path">${escapeHtml(item.path)}</div>
@@ -727,6 +738,37 @@ function renderCleanupList() {
         </div>`).join('');
 
     list.innerHTML = html;
+
+    const refreshSelectedInfo = () => {
+        const checked = Array.from(list.querySelectorAll('input[data-clean-path]:checked'));
+        const selectedPaths = new Set(checked.map(cb => cb.dataset.cleanPath));
+        const selectedBytes = state.cleanup.items
+            .filter(i => selectedPaths.has(i.path))
+            .reduce((sum, i) => sum + (i.size_bytes || 0), 0);
+        const info = $('#cleanupSelectedInfo');
+        if (info) info.textContent = `${t('selected') || 'Sélection'}: ${checked.length}/${state.cleanup.items.length} — ${formatBytes(selectedBytes)}`;
+    };
+
+    const btnSelectAll = $('#btnCleanupSelectAll');
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', () => {
+            list.querySelectorAll('input[data-clean-path]').forEach(cb => { cb.checked = true; });
+            refreshSelectedInfo();
+        });
+    }
+
+    const btnDeselectAll = $('#btnCleanupDeselectAll');
+    if (btnDeselectAll) {
+        btnDeselectAll.addEventListener('click', () => {
+            list.querySelectorAll('input[data-clean-path]').forEach(cb => { cb.checked = false; });
+            refreshSelectedInfo();
+        });
+    }
+
+    list.querySelectorAll('input[data-clean-path]').forEach(cb => {
+        cb.addEventListener('change', refreshSelectedInfo);
+    });
+    refreshSelectedInfo();
 }
 
 async function runCleanup() {
@@ -737,7 +779,14 @@ async function runCleanup() {
     await safeSnapshot('Nettoyage — Aura Update');
 
     try {
-        const paths = state.cleanup.items.map(i => i.path);
+        const selected = Array.from($$('#cleanupList input[data-clean-path]:checked'));
+        const paths = selected.length > 0
+            ? selected.map(i => i.dataset.cleanPath)
+            : state.cleanup.items.map(i => i.path);
+        if (paths.length === 0) {
+            showToast(t('no_selection'), 'error');
+            return;
+        }
         const freed = await invoke('run_cleanup', { paths });
         showToast(formatBytes(freed) + ' ' + t('freed'), 'success');
         state.cleanup = { items: [], total_bytes: 0 };
@@ -1212,10 +1261,14 @@ async function runBloatwarePurge() {
             </div>
         `;
         document.body.appendChild(overlay);
+        results.textContent = t('bloatware_ready');
 
         const closeModal = () => overlay.remove();
         overlay.querySelector('#btnCloseBloatModal').addEventListener('click', closeModal);
-        overlay.querySelector('#btnBloatCancel').addEventListener('click', closeModal);
+        overlay.querySelector('#btnBloatCancel').addEventListener('click', () => {
+            results.textContent = t('bloatware_cancelled');
+            closeModal();
+        });
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
         overlay.querySelector('#btnBloatSelectAll').addEventListener('click', () => {
@@ -1224,7 +1277,12 @@ async function runBloatwarePurge() {
         overlay.querySelector('#btnBloatDeselectAll').addEventListener('click', () => {
             overlay.querySelectorAll('input[data-bloat-pkg]').forEach(cb => cb.checked = false);
         });
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                results.textContent = t('bloatware_cancelled');
+                closeModal();
+            }
+        });
 
         overlay.querySelector('#btnBloatConfirm').addEventListener('click', async () => {
             const selected = Array.from(overlay.querySelectorAll('input[data-bloat-pkg]:checked'))
@@ -2409,7 +2467,23 @@ function closeTempAlert() {
 async function tempAlertClean() {
     closeTempAlert();
     switchTab('cleanup');
-    scanCleanup();
+    try {
+        const report = await invoke('scan_cleanup');
+        state.cleanup = report;
+        renderCleanupList();
+        if (!report || !Array.isArray(report.items) || report.items.length === 0) {
+            showToast(t('no_temp_to_clean') || t('no_bloatware'), 'success');
+            return;
+        }
+        const paths = report.items.map(i => i.path);
+        const freed = await invoke('run_cleanup', { paths });
+        showToast((t('temp_alert_cleaned') || 'Nettoyage terminé') + ': ' + formatBytes(freed), 'success');
+        state.cleanup = { items: [], total_bytes: 0 };
+        renderCleanupList();
+        refreshHealth();
+    } catch (e) {
+        showToast(t('error_clean') + ': ' + e, 'error');
+    }
 }
 
 /* ─── Crash Report ─────────────────────────────────────────── */

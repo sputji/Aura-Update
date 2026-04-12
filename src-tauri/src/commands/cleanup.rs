@@ -177,6 +177,41 @@ fn dir_size(path: &Path) -> u64 {
     }).sum()
 }
 
+fn make_writable(path: &Path) {
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let mut perms = metadata.permissions();
+        if perms.readonly() {
+            perms.set_readonly(false);
+            let _ = std::fs::set_permissions(path, perms);
+        }
+    }
+}
+
+fn remove_path_best_effort(path: &Path) -> bool {
+    if !path.exists() {
+        return true;
+    }
+
+    make_writable(path);
+
+    if path.is_file() {
+        return std::fs::remove_file(path).is_ok();
+    }
+
+    if path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let child = entry.path();
+                let _ = remove_path_best_effort(&child);
+            }
+        }
+        make_writable(path);
+        return std::fs::remove_dir(path).is_ok() || std::fs::remove_dir_all(path).is_ok();
+    }
+
+    false
+}
+
 // ── Clean temp / cache files ─────────────────────────────────────────
 #[tauri::command]
 pub async fn run_cleanup(state: tauri::State<'_, AppState>, paths: Vec<String>) -> Result<u64, String> {
@@ -187,7 +222,7 @@ pub async fn run_cleanup(state: tauri::State<'_, AppState>, paths: Vec<String>) 
         // Individual file (e.g. thumbcache_*.db)
         if path.is_file() {
             let size = path.metadata().map(|m| m.len()).unwrap_or(0);
-            if std::fs::remove_file(&path).is_ok() {
+            if remove_path_best_effort(&path) {
                 freed += size;
             }
             continue;
@@ -195,14 +230,13 @@ pub async fn run_cleanup(state: tauri::State<'_, AppState>, paths: Vec<String>) 
         // Directory — delete its contents, not the directory itself
         if let Ok(entries) = std::fs::read_dir(&path) {
             for entry in entries.flatten() {
+                let child_path = entry.path();
                 let size = if entry.metadata().map(|m| m.is_dir()).unwrap_or(false) {
-                    dir_size(&entry.path())
+                    dir_size(&child_path)
                 } else {
                     entry.metadata().map(|m| m.len()).unwrap_or(0)
                 };
-                if std::fs::remove_dir_all(entry.path()).is_ok()
-                    || std::fs::remove_file(entry.path()).is_ok()
-                {
+                if remove_path_best_effort(&child_path) {
                     freed += size;
                 }
             }
@@ -729,12 +763,6 @@ const BLOATWARE_LIST: &[&str] = &[
     "Microsoft.People",
     "Microsoft.SkypeApp",
     "Microsoft.WindowsFeedbackHub",
-    "Microsoft.Xbox.TCUI",
-    "Microsoft.XboxApp",
-    "Microsoft.XboxGameOverlay",
-    "Microsoft.XboxGamingOverlay",
-    "Microsoft.XboxIdentityProvider",
-    "Microsoft.XboxSpeechToTextOverlay",
     "Microsoft.YourPhone",
     "Microsoft.ZuneMusic",
     "Microsoft.ZuneVideo",

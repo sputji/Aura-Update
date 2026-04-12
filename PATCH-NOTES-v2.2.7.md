@@ -8,6 +8,8 @@ Date: 2026-04-13
   - Suppression de l'etat ambigu "Analyse en cours..." quand la selection est deja chargee.
   - Ajout d'un statut clair apres scan: selection prete / purge annulee.
   - Texte clarifie pour eviter toute confusion sur les applications critiques.
+  - Nouvelle action de reactivation: possibilite de restaurer les applications precedemment desinstallees (best-effort).
+  - Ajout d'un cache de scan pour eviter les rescans inutiles et fluidifier l'affichage.
 
 - Correction du popup "Fichiers temporaires volumineux":
   - Le bouton "Nettoyer maintenant" lance maintenant un vrai nettoyage immediat.

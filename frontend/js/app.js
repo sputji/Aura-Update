@@ -21,6 +21,7 @@ const state = {
     health: null,
     busy: false,
     turboActive: false,
+    bloatwareCache: { items: null, scannedAt: 0 },
 };
 
 /* ─── DOM cache ────────────────────────────────────────────── */
@@ -1182,12 +1183,24 @@ async function runBloatwarePurge() {
     const btn = $('#btnPurgeBloat');
     const results = $('#bloatwareResults');
     btn.disabled = true;
-    results.textContent = t('scanning');
 
     try {
-        const bloatwares = await invoke('list_bloatwares');
+        const now = Date.now();
+        const cacheFresh = state.bloatwareCache.items && (now - state.bloatwareCache.scannedAt) < 120000;
+        let bloatwares = [];
+
+        if (cacheFresh) {
+            bloatwares = state.bloatwareCache.items;
+            results.textContent = t('bloatware_ready');
+        } else {
+            results.textContent = t('scanning');
+            bloatwares = await invoke('list_bloatwares');
+            state.bloatwareCache = { items: bloatwares, scannedAt: now };
+        }
+
         const installed = bloatwares.filter(b => b.installed);
-        if (installed.length === 0) {
+        const missing = bloatwares.filter(b => !b.installed);
+        if (installed.length === 0 && missing.length === 0) {
             results.textContent = t('no_bloatware');
             btn.disabled = false;
             return;
@@ -1207,7 +1220,7 @@ async function runBloatwarePurge() {
         }
 
         const grouped = { microsoft: [], games: [], thirdparty: [] };
-        for (const b of installed) {
+        for (const b of bloatwares) {
             const cat = getBloatCategory(b.package);
             grouped[cat].push(b);
         }
@@ -1228,9 +1241,10 @@ async function runBloatwarePurge() {
             checklistHtml += `<div class="bloat-category"><h4 class="bloat-category-title">${catLabels[cat] || cat}</h4>`;
             checklistHtml += items.map(b => `
                 <label class="bloatware-check-item">
-                    <input type="checkbox" checked data-bloat-pkg="${escapeHtml(b.package)}">
+                    <input type="checkbox" ${b.installed ? 'checked' : ''} data-bloat-pkg="${escapeHtml(b.package)}" data-bloat-installed="${b.installed ? '1' : '0'}">
                     <span class="bloatware-check-label">${escapeHtml(b.label)}</span>
                     <span class="bloatware-check-pkg">${escapeHtml(b.package)}</span>
+                    <span class="bloatware-check-pkg" style="margin-left:8px;opacity:.85">${b.installed ? t('bloat_status_installed') : t('bloat_status_removed')}</span>
                 </label>
             `).join('');
             checklistHtml += '</div>';
@@ -1255,6 +1269,7 @@ async function runBloatwarePurge() {
                     </div>
                     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
                         <button class="btn btn-sm btn-neutral" id="btnBloatCancel">${t('btn_decline')}</button>
+                        <button class="btn btn-sm btn-secondary" id="btnBloatRestore">↩️ ${t('btn_restore_selected')}</button>
                         <button class="btn btn-sm btn-danger" id="btnBloatConfirm">🗑️ ${t('btn_purge_selected')}</button>
                     </div>
                 </div>
@@ -1296,6 +1311,27 @@ async function runBloatwarePurge() {
             try {
                 const message = await invoke('purge_bloatwares', { selection: selected });
                 results.textContent = message;
+                state.bloatwareCache.scannedAt = 0;
+                showToast(message, 'success');
+            } catch (err) {
+                results.textContent = '';
+                showToast(t('error') + ': ' + err, 'error');
+            }
+        });
+
+        overlay.querySelector('#btnBloatRestore').addEventListener('click', async () => {
+            const selected = Array.from(overlay.querySelectorAll('input[data-bloat-pkg]:checked'))
+                .map(cb => cb.dataset.bloatPkg);
+            if (selected.length === 0) {
+                showToast(t('no_selection'), 'error');
+                return;
+            }
+            closeModal();
+            results.textContent = t('restoring');
+            try {
+                const message = await invoke('restore_bloatwares', { selection: selected });
+                results.textContent = message;
+                state.bloatwareCache.scannedAt = 0;
                 showToast(message, 'success');
             } catch (err) {
                 results.textContent = '';

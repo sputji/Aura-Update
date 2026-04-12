@@ -183,6 +183,7 @@ pub fn run() {
             commands::cleanup::check_temp_size,
             commands::cleanup::list_bloatwares,
             commands::cleanup::purge_bloatwares,
+            commands::cleanup::restore_bloatwares,
             commands::cleanup::disable_telemetry,
             commands::cleanup::disable_telemetry_granular,
             // ── Startup ──────────────────────────────────────

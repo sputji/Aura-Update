@@ -972,6 +972,55 @@ pub async fn purge_bloatwares(selection: Vec<String>) -> Result<String, String> 
     Ok(format!("Purge terminée : {} applications supprimées.", removed_count))
 }
 
+// ── Restore selected bloatwares ─────────────────────────────────────
+#[tauri::command]
+pub async fn restore_bloatwares(selection: Vec<String>) -> Result<String, String> {
+    let mut restored_count = 0;
+
+    #[cfg(windows)]
+    {
+        let targets: Vec<&str> = if selection.is_empty() {
+            BLOATWARE_LIST.to_vec()
+        } else {
+            selection
+                .iter()
+                .filter(|s| BLOATWARE_LIST.contains(&s.as_str()))
+                .map(|s| s.as_str())
+                .collect()
+        };
+
+        for pkg in &targets {
+            let ps_script = format!(
+                "Get-AppxPackage -AllUsers -Name '*{0}*' -ErrorAction SilentlyContinue | ForEach-Object {{ if ($_.InstallLocation) {{ Add-AppxPackage -DisableDevelopmentMode -Register (Join-Path $_.InstallLocation 'AppxManifest.xml') -ErrorAction SilentlyContinue }} }}; if (Get-AppxPackage -Name '*{0}*' -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}",
+                pkg
+            );
+            let out = Command::new("powershell")
+                .args(["-NoProfile", "-Command", &ps_script])
+                .creation_flags(0x0800_0000)
+                .output()
+                .await;
+            if out.map(|o| o.status.success()).unwrap_or(false) {
+                restored_count += 1;
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = selection;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let _ = selection;
+    }
+
+    Ok(format!(
+        "Réactivation terminée : {} applications restaurées.",
+        restored_count
+    ))
+}
+
 // ── Disable telemetry services ───────────────────────────────────────
 #[tauri::command]
 pub async fn disable_telemetry() -> Result<Vec<String>, String> {

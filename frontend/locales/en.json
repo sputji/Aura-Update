@@ -288,5 +288,17 @@
     "temp_alert_title": "Large Temporary Files",
     "temp_alert_desc": "Your temporary files exceed 1 GB. Cleanup is recommended.",
     "btn_clean_now": "Clean Now",
-    "btn_dismiss": "Later"
+    "btn_dismiss": "Later",
+
+    "settings_app_update_startup": "App update on startup",
+    "settings_app_update_startup_desc": "Silently checks for new Aura Update versions at launch.",
+    "app_update_title": "New Aura Update version",
+    "app_update_available": "Update available:",
+    "app_update_no_notes": "No release notes available.",
+    "app_update_none": "Aura Update is already up to date.",
+    "app_update_installing": "Installing update…",
+    "app_update_restarting": "Restarting application…",
+    "app_update_installing_lock": "Update in progress, closing is temporarily blocked.",
+    "btn_install_update_now": "Install update",
+    "btn_later": "Later"
 }

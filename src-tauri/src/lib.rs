@@ -17,6 +17,7 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--auto-start"])));
 
     // On n'active l'instance unique QUE si ce n'est pas un redémarrage Admin
@@ -43,6 +44,7 @@ pub fn run() {
                 data_dir,
                 config: Mutex::new(config),
                 remote_port: Mutex::new(None),
+                app_update_in_progress: Mutex::new(false),
             });
 
             // Set window icon from embedded icon.png
@@ -67,6 +69,7 @@ pub fn run() {
                 // Build right-click context menu
                 let menu_show = MenuItem::with_id(app, "tray_show", "Ouvrir Aura Update", true, None::<&str>)?;
                 let menu_autopilot = MenuItem::with_id(app, "tray_autopilot", "🚀 Auto-Pilote", true, None::<&str>)?;
+                let menu_check_update = MenuItem::with_id(app, "tray_check_update", "🔄 Vérifier les mises à jour d'Aura", true, None::<&str>)?;
                 let menu_settings = MenuItem::with_id(app, "tray_settings", "⚙️ Paramètres", true, None::<&str>)?;
                 let menu_website = MenuItem::with_id(app, "tray_website", "🌐 Site Web", true, None::<&str>)?;
                 let menu_quit = MenuItem::with_id(app, "tray_quit", "Quitter", true, None::<&str>)?;
@@ -74,12 +77,13 @@ pub fn run() {
                 let menu = Menu::with_items(app, &[
                     &menu_show,
                     &menu_autopilot,
+                    &menu_check_update,
                     &menu_settings,
                     &menu_website,
                     &menu_quit,
                 ])?;
 
-                let _ = TrayIconBuilder::new()
+                let _ = TrayIconBuilder::with_id("main-tray")
                     .icon(tray_icon)
                     .tooltip("Aura Update")
                     .menu(&menu)
@@ -106,6 +110,14 @@ pub fn run() {
                                     let _ = w.unminimize();
                                     let _ = w.set_focus();
                                     let _ = w.eval("openSettings()");
+                                }
+                            }
+                            "tray_check_update" => {
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.unminimize();
+                                    let _ = w.set_focus();
+                                    let _ = w.eval("globalThis.manualCheckAppUpdate(true)");
                                 }
                             }
                             "tray_website" => {
@@ -148,6 +160,10 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state: tauri::State<'_, AppState> = window.app_handle().state();
+                if *state.app_update_in_progress.lock().unwrap() {
+                    api.prevent_close();
+                    return;
+                }
                 let close_to_tray = state.config.lock().unwrap().close_to_tray;
                 if close_to_tray {
                     api.prevent_close();
@@ -171,6 +187,9 @@ pub fn run() {
             // ── Updates ──────────────────────────────────────
             commands::updates::check_updates,
             commands::updates::install_update,
+            commands::updates::check_app_update,
+            commands::updates::install_app_update,
+            commands::updates::set_tray_update_available,
             // ── Cleanup ──────────────────────────────────────
             commands::cleanup::scan_cleanup,
             commands::cleanup::run_cleanup,

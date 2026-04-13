@@ -22,6 +22,8 @@ const state = {
     busy: false,
     turboActive: false,
     bloatwareCache: { items: null, scannedAt: 0 },
+    appUpdateInfo: null,
+    appUpdateInstalling: false,
 };
 
 /* ─── DOM cache ────────────────────────────────────────────── */
@@ -1542,6 +1544,10 @@ function syncSettingsUI() {
     // Close to Tray
     $('#closeToTrayToggle').checked = state.config.close_to_tray || false;
     $('#closeToTrayStatus').textContent = state.config.close_to_tray ? t('enabled') : t('disabled');
+
+    // App updater startup check
+    $('#autoUpdateToggle').checked = state.config.auto_update_on_startup !== false;
+    $('#autoUpdateStatus').textContent = state.config.auto_update_on_startup !== false ? t('enabled') : t('disabled');
 }
 
 function highlightOption(selector, value) {
@@ -1556,6 +1562,64 @@ async function saveConfigKey(key, value) {
         await invoke('set_config_value', { key, value });
         state.config[key] = value;
     } catch (e) { console.warn('Config save failed', key, e); }
+}
+
+function openAppUpdateModal(info) {
+    state.appUpdateInfo = info;
+    $('#appUpdateOverlay').classList.remove('hidden');
+    $('#appUpdateVersion').textContent = `${t('app_update_available')} ${info.current_version} → ${info.version || '?'}`;
+    $('#appUpdateNotes').textContent = info.release_notes || t('app_update_no_notes');
+    $('#appUpdateProgressWrap').classList.add('hidden');
+    $('#appUpdateProgressBar').style.width = '0%';
+    $('#appUpdateProgressText').textContent = '0%';
+}
+
+function closeAppUpdateModal(force = false) {
+    if (state.appUpdateInstalling && !force) {
+        showToast(t('app_update_installing_lock'), 'warning');
+        return;
+    }
+    $('#appUpdateOverlay').classList.add('hidden');
+}
+
+async function manualCheckAppUpdate(showNoUpdateToast = false) {
+    try {
+        const info = await invoke('check_app_update');
+        if (info.available) {
+            await invoke('set_tray_update_available', { available: true, version: info.version });
+            openAppUpdateModal(info);
+        } else {
+            await invoke('set_tray_update_available', { available: false, version: null });
+            if (showNoUpdateToast) showToast(t('app_update_none'), 'success');
+        }
+        return info;
+    } catch (e) {
+        if (showNoUpdateToast) showToast(t('error') + ': ' + e, 'error');
+        return null;
+    }
+}
+
+async function installAppUpdateNow() {
+    if (state.appUpdateInstalling) return;
+    state.appUpdateInstalling = true;
+    $('#appUpdateProgressWrap').classList.remove('hidden');
+    $('#btnInstallAppUpdate').disabled = true;
+    $('#btnLaterAppUpdate').disabled = true;
+    $('#btnCloseAppUpdate').disabled = true;
+    try {
+        await invoke('install_app_update');
+    } catch (e) {
+        state.appUpdateInstalling = false;
+        $('#btnInstallAppUpdate').disabled = false;
+        $('#btnLaterAppUpdate').disabled = false;
+        $('#btnCloseAppUpdate').disabled = false;
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+async function startupCheckAppUpdate() {
+    if (!state.config || state.config.auto_update_on_startup === false) return;
+    await manualCheckAppUpdate(false);
 }
 
 /* ─── AI ───────────────────────────────────────────────────── */
@@ -1786,6 +1850,28 @@ async function setupListeners() {
         else if (action === 'turbo') toggleTurboMode();
         else if (action === 'coolboost') runCoolBoost();
     });
+
+    await listen('app-update-available', (event) => {
+        const info = event.payload;
+        if (info && info.available) openAppUpdateModal(info);
+    });
+
+    await listen('app-update-progress', (event) => {
+        const payload = event.payload || {};
+        const phase = payload.phase || '';
+        const percent = typeof payload.percent === 'number' ? payload.percent : 0;
+        if (phase === 'starting' || phase === 'downloading' || phase === 'installing') {
+            $('#appUpdateProgressWrap').classList.remove('hidden');
+        }
+        $('#appUpdateProgressBar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
+        if (phase === 'installing') {
+            $('#appUpdateProgressText').textContent = t('app_update_installing');
+        } else if (phase === 'done') {
+            $('#appUpdateProgressText').textContent = t('app_update_restarting');
+        } else {
+            $('#appUpdateProgressText').textContent = `${percent}%`;
+        }
+    });
 }
 
 /* ─── Event Bindings ───────────────────────────────────────── */
@@ -1915,6 +2001,13 @@ function bindEvents() {
         $('#closeToTrayStatus').textContent = val ? t('enabled') : t('disabled');
     });
 
+    $('#autoUpdateToggle').addEventListener('change', (e) => {
+        const val = e.target.checked;
+        saveConfigKey('auto_update_on_startup', val);
+        state.config.auto_update_on_startup = val;
+        $('#autoUpdateStatus').textContent = val ? t('enabled') : t('disabled');
+    });
+
     // AI toggle
     $('#aiToggle').addEventListener('change', (e) => {
         const enabled = e.target.checked;
@@ -1982,6 +2075,13 @@ function bindEvents() {
         state._pendingAI = null;
     });
     $('#btnConsentAccept').addEventListener('click', acceptConsent);
+
+    $('#btnInstallAppUpdate').addEventListener('click', installAppUpdateNow);
+    $('#btnLaterAppUpdate').addEventListener('click', () => closeAppUpdateModal(false));
+    $('#btnCloseAppUpdate').addEventListener('click', () => closeAppUpdateModal(false));
+    $('#appUpdateOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeAppUpdateModal(false);
+    });
 
     // Remote modal
     $('#btnCloseRemote').addEventListener('click', () => $('#remoteOverlay').classList.add('hidden'));
@@ -2455,6 +2555,7 @@ async function init() {
         // System info badges (non-blocking — runs after main scan)
         loadSystemSpecs();
         initBackupDir();
+        startupCheckAppUpdate();
 
         splashStatus(t('ready'));
 
@@ -2660,4 +2761,5 @@ async function syncBackupDirUI() {
     }
 }
 
+globalThis.manualCheckAppUpdate = manualCheckAppUpdate;
 init();

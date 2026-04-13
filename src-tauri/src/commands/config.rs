@@ -8,6 +8,7 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub config: Mutex<Config>,
     pub remote_port: Mutex<Option<u16>>,
+    pub app_update_in_progress: Mutex<bool>,
 }
 
 // ── Configuration model ──────────────────────────────────────────────
@@ -65,6 +66,9 @@ pub struct Config {
     /// Auto-clean interval: "disabled", "daily", "weekly", "monthly"
     #[serde(default = "default_disabled")]
     pub auto_clean_interval: String,
+    /// Check Aura Update app updates on startup
+    #[serde(default = "default_true")]
+    pub auto_update_on_startup: bool,
 }
 
 fn default_true() -> bool { true }
@@ -99,6 +103,7 @@ impl Default for Config {
             close_to_tray: false,
             auto_clean_enabled: false,
             auto_clean_interval: "disabled".into(),
+            auto_update_on_startup: true,
         }
     }
 }
@@ -172,6 +177,7 @@ pub fn set_config_value(
         "close_to_tray" => cfg.close_to_tray = value.as_bool().unwrap_or(false),
         "auto_clean_enabled" => cfg.auto_clean_enabled = value.as_bool().unwrap_or(false),
         "auto_clean_interval" => cfg.auto_clean_interval = value.as_str().unwrap_or("disabled").into(),
+        "auto_update_on_startup" => cfg.auto_update_on_startup = value.as_bool().unwrap_or(true),
         _ => return Err(format!("Unknown config key: {key}")),
 
     }

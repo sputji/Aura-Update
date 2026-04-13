@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
+use tauri::menu::{Menu, MenuItem};
+use tauri_plugin_updater::UpdaterExt;
 use tokio::process::Command;
 use std::time::Duration;
+
+use super::config::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePackage {
@@ -14,6 +19,195 @@ pub struct UpdatePackage {
     pub needs_admin: bool,
     #[serde(default)]
     pub pending_reboot: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUpdateInfo {
+    pub available: bool,
+    pub current_version: String,
+    pub version: Option<String>,
+    pub release_notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUpdateProgress {
+    pub phase: String,
+    pub downloaded: u64,
+    pub total: u64,
+    pub percent: u64,
+}
+
+fn update_menu_label(version: Option<&str>) -> String {
+    match version {
+        Some(v) if !v.is_empty() => format!("🆕 Nouvelle mise à jour Aura ({v})"),
+        _ => "🔄 Vérifier les mises à jour d'Aura".to_string(),
+    }
+}
+
+pub fn refresh_tray_menu(app: &tauri::AppHandle, version: Option<&str>) -> Result<(), String> {
+    let menu_show = MenuItem::with_id(app, "tray_show", "Ouvrir Aura Update", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu_autopilot = MenuItem::with_id(app, "tray_autopilot", "🚀 Auto-Pilote", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu_check_update = MenuItem::with_id(app, "tray_check_update", update_menu_label(version), true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu_settings = MenuItem::with_id(app, "tray_settings", "⚙️ Paramètres", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu_website = MenuItem::with_id(app, "tray_website", "🌐 Site Web", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu_quit = MenuItem::with_id(app, "tray_quit", "Quitter", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+
+    let menu = Menu::with_items(
+        app,
+        &[
+            &menu_show,
+            &menu_autopilot,
+            &menu_check_update,
+            &menu_settings,
+            &menu_website,
+            &menu_quit,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_tray_update_available(
+    app: tauri::AppHandle,
+    available: bool,
+    version: Option<String>,
+) -> Result<bool, String> {
+    if available {
+        refresh_tray_menu(&app, version.as_deref())?;
+    } else {
+        refresh_tray_menu(&app, None)?;
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
+    let current_version = app.package_info().version.to_string();
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if let Some(update) = update {
+        let info = AppUpdateInfo {
+            available: true,
+            current_version,
+            version: Some(update.version.to_string()),
+            release_notes: update.body.clone(),
+        };
+        let _ = refresh_tray_menu(&app, info.version.as_deref());
+        let _ = app.emit("app-update-available", &info);
+        return Ok(info);
+    }
+
+    let _ = refresh_tray_menu(&app, None);
+    Ok(AppUpdateInfo {
+        available: false,
+        current_version,
+        version: None,
+        release_notes: None,
+    })
+}
+
+#[tauri::command]
+pub async fn install_app_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<bool, String> {
+    {
+        let mut guard = state.app_update_in_progress.lock().unwrap();
+        if *guard {
+            return Err("Une mise à jour est déjà en cours".into());
+        }
+        *guard = true;
+    }
+
+    let result = async {
+        let update = app
+            .updater()
+            .map_err(|e| e.to_string())?
+            .check()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let Some(update) = update else {
+            let _ = app.emit("app-update-progress", AppUpdateProgress {
+                phase: "none".to_string(),
+                downloaded: 0,
+                total: 0,
+                percent: 0,
+            });
+            return Err("Aucune nouvelle version disponible".into());
+        };
+
+        let _ = app.emit("app-update-progress", AppUpdateProgress {
+            phase: "starting".to_string(),
+            downloaded: 0,
+            total: 0,
+            percent: 0,
+        });
+
+        update
+            .download_and_install(
+                |chunk_length, content_length| {
+                    let downloaded = chunk_length as u64;
+                    let total = content_length.unwrap_or(0);
+                    let percent = if total > 0 {
+                        downloaded.saturating_mul(100) / total
+                    } else {
+                        0
+                    };
+                    let _ = app.emit("app-update-progress", AppUpdateProgress {
+                        phase: "downloading".to_string(),
+                        downloaded,
+                        total,
+                        percent,
+                    });
+                },
+                || {
+                    let _ = app.emit("app-update-progress", AppUpdateProgress {
+                        phase: "installing".to_string(),
+                        downloaded: 0,
+                        total: 0,
+                        percent: 100,
+                    });
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let _ = app.emit("app-update-progress", AppUpdateProgress {
+            phase: "done".to_string(),
+            downloaded: 0,
+            total: 0,
+            percent: 100,
+        });
+
+        let _ = refresh_tray_menu(&app, None);
+        Ok::<bool, String>(true)
+    }
+    .await;
+
+    *state.app_update_in_progress.lock().unwrap() = false;
+
+    if result.is_ok() {
+        app.restart();
+    }
+
+    result
 }
 
 // ── Main command ─────────────────────────────────────────────────────
@@ -85,7 +279,6 @@ pub async fn install_update(
     app: tauri::AppHandle,
     pkg: UpdatePackage,
 ) -> Result<bool, String> {
-    use tauri::Emitter;
     let id = pkg.id.clone();
 
     app.emit("update-progress", serde_json::json!({

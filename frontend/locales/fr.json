@@ -288,5 +288,17 @@
     "temp_alert_title": "Fichiers temporaires volumineux",
     "temp_alert_desc": "Vos fichiers temporaires dépassent 1 Go. Un nettoyage est recommandé.",
     "btn_clean_now": "Nettoyer maintenant",
-    "btn_dismiss": "Plus tard"
+    "btn_dismiss": "Plus tard",
+
+    "settings_app_update_startup": "Mise à jour app au démarrage",
+    "settings_app_update_startup_desc": "Vérifie discrètement les nouvelles versions d'Aura Update à l'ouverture.",
+    "app_update_title": "Nouvelle version d'Aura Update",
+    "app_update_available": "Mise à jour disponible :",
+    "app_update_no_notes": "Pas de note de version disponible.",
+    "app_update_none": "Aura Update est déjà à jour.",
+    "app_update_installing": "Installation en cours…",
+    "app_update_restarting": "Redémarrage de l'application…",
+    "app_update_installing_lock": "Installation en cours, fermeture temporairement bloquée.",
+    "btn_install_update_now": "Installer la mise à jour",
+    "btn_later": "Plus tard"
 }

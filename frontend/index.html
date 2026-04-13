@@ -429,6 +429,14 @@
                         <button class="btn-option" data-autoclean="monthly" data-i18n="sched_monthly">Monthly</button>
                     </div>
                 </div>
+                <div class="setting-group">
+                    <label for="autoUpdateToggle" data-i18n="settings_app_update_startup">Mise à jour de l'application au démarrage</label>
+                    <p class="setting-desc" data-i18n="settings_app_update_startup_desc">Vérifie discrètement les nouvelles versions d'Aura Update à l'ouverture.</p>
+                    <div class="setting-row">
+                        <label class="toggle"><input type="checkbox" id="autoUpdateToggle" aria-label="Auto update startup"><span class="toggle-slider"></span></label>
+                        <span id="autoUpdateStatus" data-i18n="enabled">Activé</span>
+                    </div>
+                </div>
                 <!-- Snapshot -->
                 <div class="setting-group">
                     <label data-i18n="settings_snapshot">Auto Snapshot</label>
@@ -592,6 +600,29 @@
                 <div class="consent-actions">
                     <button id="btnConsentDecline" class="btn btn-neutral" data-i18n="btn_decline">Decline</button>
                     <button id="btnConsentAccept" class="btn btn-primary" data-i18n="btn_accept">Accept</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="appUpdateOverlay" class="modal-overlay hidden">
+        <div class="modal app-update-modal">
+            <div class="modal-header">
+                <h2 data-i18n="app_update_title">✨ Nouvelle version d'Aura Update</h2>
+                <button id="btnCloseAppUpdate" class="btn-icon btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="setting-desc" id="appUpdateVersion"></p>
+                <pre id="appUpdateNotes" class="app-update-notes"></pre>
+                <div id="appUpdateProgressWrap" class="hidden">
+                    <div class="progress-bar-wrap app-update-progress-wrap">
+                        <div id="appUpdateProgressBar" class="progress-bar app-update-progress-bar"></div>
+                    </div>
+                    <p id="appUpdateProgressText" class="setting-desc app-update-progress-text">0%</p>
+                </div>
+                <div class="consent-actions app-update-actions">
+                    <button id="btnLaterAppUpdate" class="btn btn-neutral" data-i18n="btn_later">Plus tard</button>
+                    <button id="btnInstallAppUpdate" class="btn btn-primary" data-i18n="btn_install_update_now">Installer la mise à jour</button>
                 </div>
             </div>
         </div>

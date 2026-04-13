@@ -34,10 +34,7 @@ Date: 2026-04-13
 
 ## Mise a jour de version
 
-- Version application passee a 2.2.7 dans:
-  - package.json
-  - src-tauri/Cargo.toml
-  - src-tauri/tauri.conf.json
+- Version application passee a 2.2.7.
 
 ## Notes de validation
 

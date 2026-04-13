@@ -17,6 +17,8 @@ permissions:
 env:
   NODE_VERSION: "20"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   # ════════════════════════════════════════════════════════════
@@ -54,6 +56,8 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*setup*.exe
+            src-tauri/target/release/bundle/**/*.sig
+            src-tauri/target/release/bundle/**/latest*.json
 
   # ════════════════════════════════════════════════════════════
   # macOS Universal (arm64 + x86_64)
@@ -91,6 +95,8 @@ jobs:
           retention-days: 5
           path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/**/*.sig
+            src-tauri/target/universal-apple-darwin/release/bundle/**/latest*.json
 
   # ════════════════════════════════════════════════════════════
   # Linux x86_64 — .deb + .rpm + AppImage
@@ -138,6 +144,8 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/**/*.sig
+            src-tauri/target/release/bundle/**/latest*.json
 
   # ════════════════════════════════════════════════════════════
   # Release — Publie tout sur GitHub Releases
@@ -158,6 +166,24 @@ jobs:
       - name: List artifacts
         run: find dist -type f | head -30
 
+      - name: Build updater.json from latest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_file="$(find dist -type f \( -name 'latest.json' -o -name 'latest-*.json' \) | head -n1 || true)"
+          if [ -n "${latest_file}" ]; then
+            cp "${latest_file}" dist/updater.json
+          else
+            cat > dist/updater.json <<EOF
+          {
+            "version": "${GITHUB_REF_NAME#v}",
+            "notes": "Release ${GITHUB_REF_NAME}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {}
+          }
+          EOF
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -171,3 +197,6 @@ jobs:
             dist/**/*.deb
             dist/**/*.rpm
             dist/**/*.AppImage
+            dist/**/*.sig
+            dist/**/latest*.json
+            dist/updater.json

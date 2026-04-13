@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.6** — Dernière version stable
+> **v2.2.7** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -39,6 +39,7 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 | 📂 **Backup** | Dossier de sauvegarde personnalisable |
 | 🎓 **Tutoriel** | Guide interactif au premier lancement |
 | 🌍 **Bilingue** | Interface FR/EN avec changement instantané |
+| ⬆️ **Auto-Update App** | Mise à jour automatique multi-OS intégrée |
 
 ---
 
@@ -61,6 +62,20 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 > ⚠️ **SmartScreen** : L'exécutable n'étant pas encore signé avec un certificat EV,
 > Windows SmartScreen peut afficher un avertissement au premier lancement.
 > Cliquez sur « Plus d'infos » puis « Exécuter quand même ».
+
+---
+
+## ⬆️ Auto-Update Multi-OS (v2.2.7)
+
+- Vérification silencieuse au démarrage (désactivable dans Paramètres)
+- Vérification manuelle depuis le tray via “Vérifier les mises à jour d'Aura”
+- Item tray dynamique lorsqu'une nouvelle version est détectée
+- Modal premium de mise à jour avec:
+  - version actuelle → version cible
+  - release notes
+  - barre de progression téléchargement/installation
+  - verrouillage de fermeture pendant installation
+- Redémarrage automatique de l'application après installation
 
 ---
 
@@ -114,6 +129,17 @@ Toute redistribution non autorisée est interdite.
 
 - **Site web** : [auraneo.fr](https://auraneo.fr)
 - **Email** : contact@auraneo.fr
+
+---
+
+## 📋 Changelog v2.2.7
+
+- ⬆️ **Auto-Update applicatif multi-OS** intégré dans l'application
+- 🧭 **Tray dynamique** avec action de vérification et indication “nouvelle version”
+- 🪟 **Modal de mise à jour premium** (notes de version, progression, verrouillage de fermeture)
+- ⚙️ **Nouveau réglage utilisateur** pour activer/désactiver la vérification au démarrage
+- 🧹 **Sécurité cleanup Windows**: suppression Xbox/Game Bar retirée de la purge bloatware
+- ♻️ **Réactivation bloatwares**: ajout de la restauration de sélection
 
 ---
 

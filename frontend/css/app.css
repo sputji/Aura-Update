@@ -2204,6 +2204,39 @@ body {
     margin-left: auto;
 }
 
+.app-update-modal {
+    max-width: 560px;
+}
+
+.app-update-notes {
+    max-height: 220px;
+    overflow: auto;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    white-space: pre-wrap;
+    font-size: .8rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.app-update-progress-wrap {
+    margin-top: 8px;
+}
+
+.app-update-progress-bar {
+    width: 0%;
+}
+
+.app-update-progress-text {
+    margin-top: 8px;
+}
+
+.app-update-actions {
+    margin-top: 14px;
+}
+
 /* ───── Responsive ────────────────────────────────────────── */
 
 /* ───── Onboarding Tutorial ──────────────────────────────── */

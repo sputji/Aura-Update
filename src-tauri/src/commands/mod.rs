@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod ai;
 pub mod cleanup;
+pub mod maintenance;
 pub mod config;
 pub mod cooling;
 pub mod health;

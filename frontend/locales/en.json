@@ -300,5 +300,19 @@
     "app_update_restarting": "Restarting application…",
     "app_update_installing_lock": "Update in progress, closing is temporarily blocked.",
     "btn_install_update_now": "Install update",
-    "btn_later": "Later"
+    "btn_later": "Later",
+    "tab_maintenance": "Maintenance",
+    "maintenance_title": "Advanced Maintenance & Engines",
+    "maintenance_subtitle": "Advanced system tools — may require administrator rights.",
+    "maint_git_title": "Update Git Engine",
+    "maint_git_desc": "Updates Git to the latest version available on your system.",
+    "maint_apps_title": "Update Applications",
+    "maint_apps_desc": "Updates all installed applications via the package manager.",
+    "maint_repair_title": "System Analysis & Repair",
+    "maint_repair_desc": "Checks system integrity and repairs corrupted files (DISM + SFC on Windows).",
+    "maint_clean_title": "System Cleanup",
+    "maint_clean_desc": "Removes unnecessary files using the OS built-in cleanup tool.",
+    "maintenance_running": "Running…",
+    "maintenance_done": "Operation completed successfully.",
+    "btn_run": "Run"
 }

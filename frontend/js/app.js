@@ -1872,6 +1872,15 @@ async function setupListeners() {
             $('#appUpdateProgressText').textContent = `${percent}%`;
         }
     });
+
+    // Maintenance — mise à jour de l'output en temps réel
+    await listen('maintenance-progress', (event) => {
+        const d = event.payload || {};
+        const taskKey = d.task ? d.task.replace(/_/g, '-') : null;
+        if (!taskKey) return;
+        const outEl = $(`#out-${taskKey}`);
+        if (outEl && d.output) outEl.textContent = d.output;
+    });
 }
 
 /* ─── Event Bindings ───────────────────────────────────────── */
@@ -1942,6 +1951,16 @@ function bindEvents() {
     if ($('#btnScanBrowserGranular')) $('#btnScanBrowserGranular').addEventListener('click', scanBrowserGranular);
     if ($('#btnCleanBrowserGranular')) $('#btnCleanBrowserGranular').addEventListener('click', cleanBrowserGranular);
     $('#btnPurgeBloat').addEventListener('click', runBloatwarePurge);
+
+    // Maintenance Avancée & Moteurs
+    $('#btnMaintUpdateGit').addEventListener('click', () =>
+        runMaintenanceTask('update_git', 'maintenance_update_git', 'btnMaintUpdateGit'));
+    $('#btnMaintUpdateApps').addEventListener('click', () =>
+        runMaintenanceTask('update_apps', 'maintenance_update_apps', 'btnMaintUpdateApps'));
+    $('#btnMaintRepairSystem').addEventListener('click', () =>
+        runMaintenanceTask('repair_system', 'maintenance_repair_system', 'btnMaintRepairSystem'));
+    $('#btnMaintCleanSystem').addEventListener('click', () =>
+        runMaintenanceTask('clean_system', 'maintenance_clean_system', 'btnMaintCleanSystem'));
 
     // Settings modal
     $('#btnCloseSettings').addEventListener('click', closeSettings);
@@ -2762,4 +2781,48 @@ async function syncBackupDirUI() {
 }
 
 globalThis.manualCheckAppUpdate = manualCheckAppUpdate;
+
+/* ═══════════════════════════════════════════════════════════
+   MAINTENANCE AVANCÉE & MOTEURS
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * Lance une tâche de maintenance et gère l'affichage de la progression.
+ * @param {string} taskId   - identifiant interne (ex: "update_git")
+ * @param {string} command  - nom de la commande Tauri
+ * @param {string} btnId    - id du bouton déclencheur
+ */
+async function runMaintenanceTask(taskId, command, btnId) {
+    const btn = $(`#${btnId}`);
+    const progEl = $(`#prog-${taskId.replace(/_/g, '-')}`);
+    const outEl = $(`#out-${taskId.replace(/_/g, '-')}`);
+    const card = btn.closest('.maintenance-card');
+
+    // Désactiver le bouton pendant l'exécution
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    card.classList.remove('done', 'error');
+
+    // Afficher la zone de progression
+    progEl.classList.remove('hidden');
+    outEl.textContent = t('maintenance_running') || 'En cours…';
+
+    try {
+        const result = await invoke(command);
+        outEl.textContent = result || t('maintenance_done') || 'Terminé.';
+        card.classList.add('done');
+        showToast(t('maintenance_done') || 'Opération terminée.', 'success');
+    } catch (err) {
+        outEl.textContent = String(err);
+        card.classList.add('error');
+        showToast(String(err), 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = t('btn_run') || 'Exécuter';
+        // Stopper l'animation indeterminate
+        const fill = progEl.querySelector('.maintenance-progress-fill');
+        if (fill) fill.classList.remove('indeterminate');
+    }
+}
+
 init();

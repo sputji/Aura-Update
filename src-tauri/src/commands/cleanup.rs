@@ -524,7 +524,7 @@ pub async fn scan_browser_granular(filters: Vec<BrowserCleanupFilter>) -> Result
         }
     }
 
-    let total: u64 = items.iter().map(|i| i.size_bytes).sum();
+    let total: u64 = items.iter().map(|i: &CleanupItem| i.size_bytes).sum();
     Ok(CleanupReport { items, total_bytes: total })
 }
 

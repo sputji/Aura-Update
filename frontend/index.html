@@ -170,6 +170,9 @@
             <button class="tab" data-tab="turbo">
                 <span>🚀</span> <span data-i18n="tab_turbo">Turbo</span>
             </button>
+            <button class="tab" data-tab="maintenance">
+                <span>🔧</span> <span data-i18n="tab_maintenance">Maintenance</span>
+            </button>
         </nav>
 
         <!-- ══ TAB: Updates ══ -->
@@ -374,6 +377,90 @@
                         <div id="backupsList" class="backups-list"></div>
                         <div id="localBackupsList" class="backups-list"></div>
                     </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ══ TAB: Maintenance Avancée & Moteurs ══ -->
+        <section id="tab-maintenance" class="tab-content">
+            <div class="maintenance-container">
+
+                <div class="maintenance-header">
+                    <span class="maintenance-icon">🔧</span>
+                    <div>
+                        <h2 data-i18n="maintenance_title">Maintenance Avancée &amp; Moteurs</h2>
+                        <p class="maintenance-subtitle" data-i18n="maintenance_subtitle">Outils système avancés — peuvent nécessiter des droits administrateur.</p>
+                    </div>
+                </div>
+
+                <!-- Grille des 4 actions -->
+                <div class="maintenance-grid">
+
+                    <!-- 1. Mettre à jour le Moteur Git -->
+                    <div class="maintenance-card" id="card-update-git">
+                        <div class="maintenance-card-icon">⚙️</div>
+                        <div class="maintenance-card-body">
+                            <h3 data-i18n="maint_git_title">Mettre à jour le Moteur Git</h3>
+                            <p class="maintenance-card-desc" data-i18n="maint_git_desc">Met à jour Git vers la dernière version disponible sur votre système.</p>
+                        </div>
+                        <div class="maintenance-card-actions">
+                            <button id="btnMaintUpdateGit" class="btn btn-primary btn-sm" data-i18n="btn_run">Exécuter</button>
+                        </div>
+                        <div class="maintenance-progress hidden" id="prog-update-git">
+                            <div class="maintenance-progress-bar"><div class="maintenance-progress-fill indeterminate"></div></div>
+                            <pre class="maintenance-output" id="out-update-git"></pre>
+                        </div>
+                    </div>
+
+                    <!-- 2. Mettre à jour les Applications -->
+                    <div class="maintenance-card" id="card-update-apps">
+                        <div class="maintenance-card-icon">📦</div>
+                        <div class="maintenance-card-body">
+                            <h3 data-i18n="maint_apps_title">Mettre à jour les Applications</h3>
+                            <p class="maintenance-card-desc" data-i18n="maint_apps_desc">Met à jour toutes les applications installées via le gestionnaire de paquets.</p>
+                        </div>
+                        <div class="maintenance-card-actions">
+                            <button id="btnMaintUpdateApps" class="btn btn-primary btn-sm" data-i18n="btn_run">Exécuter</button>
+                        </div>
+                        <div class="maintenance-progress hidden" id="prog-update-apps">
+                            <div class="maintenance-progress-bar"><div class="maintenance-progress-fill indeterminate"></div></div>
+                            <pre class="maintenance-output" id="out-update-apps"></pre>
+                        </div>
+                    </div>
+
+                    <!-- 3. Analyse & Réparation Système -->
+                    <div class="maintenance-card" id="card-repair-system">
+                        <div class="maintenance-card-icon">🛠️</div>
+                        <div class="maintenance-card-body">
+                            <h3 data-i18n="maint_repair_title">Analyse &amp; Réparation Système</h3>
+                            <p class="maintenance-card-desc" data-i18n="maint_repair_desc">Analyse l’intégrité du système et répare les fichiers corrompus (DISM + SFC sur Windows).</p>
+                        </div>
+                        <div class="maintenance-card-actions">
+                            <button id="btnMaintRepairSystem" class="btn btn-secondary btn-sm" data-i18n="btn_run">Exécuter</button>
+                        </div>
+                        <div class="maintenance-progress hidden" id="prog-repair-system">
+                            <div class="maintenance-progress-bar"><div class="maintenance-progress-fill indeterminate"></div></div>
+                            <pre class="maintenance-output" id="out-repair-system"></pre>
+                        </div>
+                    </div>
+
+                    <!-- 4. Nettoyage du Système -->
+                    <div class="maintenance-card" id="card-clean-system">
+                        <div class="maintenance-card-icon">🧽</div>
+                        <div class="maintenance-card-body">
+                            <h3 data-i18n="maint_clean_title">Nettoyage du Système</h3>
+                            <p class="maintenance-card-desc" data-i18n="maint_clean_desc">Supprime les fichiers inutiles via l’outil natif du système d’exploitation.</p>
+                        </div>
+                        <div class="maintenance-card-actions">
+                            <button id="btnMaintCleanSystem" class="btn btn-accent btn-sm" data-i18n="btn_run">Exécuter</button>
+                        </div>
+                        <div class="maintenance-progress hidden" id="prog-clean-system">
+                            <div class="maintenance-progress-bar"><div class="maintenance-progress-fill indeterminate"></div></div>
+                            <pre class="maintenance-output" id="out-clean-system"></pre>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>

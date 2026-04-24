@@ -238,6 +238,11 @@ pub fn run() {
             commands::scheduler::set_schedule,
             commands::scheduler::set_auto_clean_schedule,
             commands::scheduler::get_auto_clean_schedule,
+            // ── Maintenance Avancée ───────────────────────────
+            commands::maintenance::maintenance_update_git,
+            commands::maintenance::maintenance_update_apps,
+            commands::maintenance::maintenance_repair_system,
+            commands::maintenance::maintenance_clean_system,
             // ── Remote Dashboard ─────────────────────────────
             commands::remote::start_remote,
             commands::remote::stop_remote,

@@ -300,5 +300,19 @@
     "app_update_restarting": "Redémarrage de l'application…",
     "app_update_installing_lock": "Installation en cours, fermeture temporairement bloquée.",
     "btn_install_update_now": "Installer la mise à jour",
-    "btn_later": "Plus tard"
+    "btn_later": "Plus tard",
+    "tab_maintenance": "Maintenance",
+    "maintenance_title": "Maintenance Avancée & Moteurs",
+    "maintenance_subtitle": "Outils système avancés — peuvent nécessiter des droits administrateur.",
+    "maint_git_title": "Mettre à jour le Moteur Git",
+    "maint_git_desc": "Met à jour Git vers la dernière version disponible sur votre système.",
+    "maint_apps_title": "Mettre à jour les Applications",
+    "maint_apps_desc": "Met à jour toutes les applications installées via le gestionnaire de paquets.",
+    "maint_repair_title": "Analyse & Réparation Système",
+    "maint_repair_desc": "Analyse l’intégrité du système et répare les fichiers corrompus (DISM + SFC sur Windows).",
+    "maint_clean_title": "Nettoyage du Système",
+    "maint_clean_desc": "Supprime les fichiers inutiles via l’outil natif du système d’exploitation.",
+    "maintenance_running": "En cours…",
+    "maintenance_done": "Opération terminée avec succès.",
+    "btn_run": "Exécuter"
 }

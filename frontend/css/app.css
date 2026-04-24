@@ -2413,3 +2413,148 @@ body {
     font-family: 'Cascadia Code', 'Fira Code', monospace;
     line-height: 1.4;
 }
+
+/* ════════════════════════════════════════════════════════════
+   Maintenance Avancée & Moteurs
+   ════════════════════════════════════════════════════════════ */
+.maintenance-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 4px 0;
+}
+
+.maintenance-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.maintenance-icon {
+    font-size: 2.2rem;
+    flex-shrink: 0;
+}
+
+.maintenance-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+
+.maintenance-subtitle {
+    font-size: .82rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Grid 2 colonnes sur desktop, 1 sur mobile */
+.maintenance-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+/* Carte individuelle */
+.maintenance-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color .2s;
+}
+
+.maintenance-card:hover {
+    border-color: var(--accent);
+}
+
+.maintenance-card-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.maintenance-card-body h3 {
+    font-size: .97rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+
+.maintenance-card-desc {
+    font-size: .8rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.maintenance-card-actions {
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+/* Barre de progression + output */
+.maintenance-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.maintenance-progress-bar {
+    height: 4px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.maintenance-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width .3s ease;
+}
+
+.maintenance-progress-fill.indeterminate {
+    width: 40%;
+    animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+    0%   { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+}
+
+.maintenance-output {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: .72rem;
+    color: var(--text-secondary);
+    background: rgba(0,0,0,.25);
+    border-radius: 6px;
+    padding: 8px 10px;
+    max-height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+}
+
+/* État "done" — accent vert */
+.maintenance-card.done .maintenance-card-icon::after {
+    content: ' ✓';
+    font-size: .9rem;
+    color: var(--success, #4ade80);
+}
+
+/* État "error" — rouge */
+.maintenance-card.error {
+    border-color: var(--danger, #f87171);
+}
+
+@media (max-width: 600px) {
+    .maintenance-grid { grid-template-columns: 1fr; }
+}

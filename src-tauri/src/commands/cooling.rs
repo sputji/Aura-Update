@@ -141,7 +141,6 @@ fn fan_boost_windows(active: bool) -> CoolBoostResult {
     }
 
     // Step 3.5: Detect third-party fan control software (informational only)
-    let mut fan_software_detected = String::new();
     if !vendor_success {
         let sw_script = r#"
 $procs = @('MSICenterService','MSICenter','MSIAfterburner','DragonCenter',
@@ -161,7 +160,6 @@ if ($found.Count -gt 0) { $found -join ',' } else { 'NONE' }
             let names = String::from_utf8_lossy(&o.stdout).trim().to_string();
             if names != "NONE" && !names.is_empty() {
                 log.push(format!("[Fan Software] Detected: {} (use it for direct fan control)", names));
-                fan_software_detected = names;
             }
         }
     }

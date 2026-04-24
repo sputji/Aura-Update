@@ -131,16 +131,19 @@ pub fn log_info(message: &str) {
 }
 
 /// Write a WARN-level log entry.
+#[allow(dead_code)]
 pub fn log_warn(message: &str) {
     write_log("WARN", message);
 }
 
 /// Write an ERROR-level log entry.
+#[allow(dead_code)]
 pub fn log_error(message: &str) {
     write_log("ERROR", message);
 }
 
 /// Write a PANIC-level log entry (used by crash reporter).
+#[allow(dead_code)]
 pub fn log_panic(message: &str) {
     write_log("PANIC", message);
 }
@@ -223,6 +226,11 @@ pub async fn send_crash_report(
         String::new()
     };
 
+    const CRASH_ENDPOINT: &str = "https://api.auraneo.fr/aura-update/v1/crash-report";
+    if !CRASH_ENDPOINT.starts_with("https://") {
+        return Err("Crash endpoint must use HTTPS".into());
+    }
+
     let payload = serde_json::json!({
         "crash_data": crash_data,
         "user_message": user_message,
@@ -231,19 +239,25 @@ pub async fn send_crash_report(
         "log_tail": log_tail,
     });
 
-    let result = reqwest::Client::new()
-        .post("https://api.auraneo.fr/aura-update/v1/crash-report")
+    let client = reqwest::Client::builder()
+        .https_only(true)
+        .min_tls_version(reqwest::tls::Version::TLS_1_2)
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to initialize secure HTTP client: {}", e))?;
+
+    let result = client
+        .post(CRASH_ENDPOINT)
         .header("X-Aura-Token", "aura_update_crash_2026")
         .json(&payload)
-        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await;
 
-    // Always clean up crash file
-    fs::remove_file(&crash_path).ok();
-
     match result {
-        Ok(_) => Ok(true),
+        Ok(_) => {
+            fs::remove_file(&crash_path).ok();
+            Ok(true)
+        }
         Err(e) => Err(format!("Failed to send crash report: {}", e)),
     }
 }

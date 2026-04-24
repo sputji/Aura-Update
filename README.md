@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.7** — Dernière version stable
+> **v2.2.8** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -33,13 +33,13 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 | 🗑️ **Bloatwares** | Suppression des applications pré-installées indésirables |
 | 🔒 **Télémétrie** | Désactivation granulaire de la télémétrie système |
 | 📸 **Snapshots** | Points de restauration avant chaque opération majeure |
-| 🤖 **Analyse IA** | Assistant IA optionnel (opt-in, compatible IA locale) |
+| 🤖 **Analyse IA** | IA locale uniquement (localhost/127.0.0.1) en mode confidentialité stricte |
 | 📅 **Planification** | Maintenance automatique programmée |
-| 🌐 **Contrôle Distant** | Dashboard accessible depuis smartphone via QR code |
+| 🌐 **Contrôle Distant** | Désactivé par défaut en mode confidentialité stricte |
 | 📂 **Backup** | Dossier de sauvegarde personnalisable |
 | 🎓 **Tutoriel** | Guide interactif au premier lancement |
 | 🌍 **Bilingue** | Interface FR/EN avec changement instantané |
-| ⬆️ **Auto-Update App** | Mise à jour automatique multi-OS intégrée |
+| ⬆️ **Auto-Update App** | Désactivé en mode confidentialité stricte |
 
 ---
 
@@ -65,25 +65,24 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 
 ---
 
-## ⬆️ Auto-Update Multi-OS (v2.2.7)
+## 🔒 Mode Confidentialité Stricte (v2.2.8)
 
-- Vérification silencieuse au démarrage (désactivable dans Paramètres)
-- Vérification manuelle depuis le tray via “Vérifier les mises à jour d'Aura”
-- Item tray dynamique lorsqu'une nouvelle version est détectée
-- Modal premium de mise à jour avec:
-  - version actuelle → version cible
-  - release notes
-  - barre de progression téléchargement/installation
-  - verrouillage de fermeture pendant installation
-- Redémarrage automatique de l'application après installation
+- Fonctionnement **offline-first**: l'application reste utilisable sans Internet.
+- **Aucune communication sortante automatique** (pas d'auto-update, pas de scan réseau au démarrage).
+- **Aucune communication avec l'environnement Aura Néo** sauf envoi volontaire d'un ticket/rapport d'erreur.
+- Rapports d'erreur: envoi **uniquement sur action explicite de l'utilisateur**.
+- Communication des tickets: **HTTPS obligatoire**, client configuré en TLS (minimum TLS 1.2).
+- Si l'envoi du ticket échoue (hors-ligne, réseau indisponible), le rapport local est conservé pour un nouvel envoi manuel.
 
 ---
 
 ## 🛡️ Sécurité et Vie Privée
 
-- ✅ **100% local** — Aucune donnée envoyée à des serveurs externes
+- ✅ **100% local par défaut** — aucune donnée transmise automatiquement
 - ✅ **Mode portable** — Toute la configuration reste à côté de l'application
-- ✅ **IA optionnelle** — Consentement explicite requis, compatible avec les IA locales
+- ✅ **Tickets d'erreur sur action utilisateur uniquement**
+- ✅ **Chiffrement des communications tickets** — HTTPS/TLS
+- ✅ **IA locale uniquement en mode strict**
 - ✅ **Gestionnaires natifs** — Utilise winget/apt/brew, pas de téléchargements tiers
 - ✅ **Code protégé** — Binaire Rust optimisé + frontend obfusqué
 
@@ -105,7 +104,7 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 Oui, Aura Update Health Center est gratuit.
 
 **Mes données sont-elles envoyées quelque part ?**
-Non. Tout fonctionne en local. La seule exception est l'analyse IA (optionnelle, consentement explicite requis).
+Non, pas automatiquement. En v2.2.8, seule l'envoi manuel d'un ticket/rapport d'erreur peut transmettre des données, via HTTPS chiffré.
 
 **Puis-je utiliser une IA locale ?**
 Oui. L'app est compatible avec toute API au format OpenAI, y compris les instances locales (vLLM, Ollama…).
@@ -140,6 +139,18 @@ Toute redistribution non autorisée est interdite.
 - ⚙️ **Nouveau réglage utilisateur** pour activer/désactiver la vérification au démarrage
 - 🧹 **Sécurité cleanup Windows**: suppression Xbox/Game Bar retirée de la purge bloatware
 - ♻️ **Réactivation bloatwares**: ajout de la restauration de sélection
+
+---
+
+## 📋 Changelog v2.2.8
+
+- 🔒 **Confidentialité stricte activée**: aucune communication réseau automatique.
+- 📴 **Offline-first**: application pleinement utilisable sans Internet.
+- 🧾 **Rapport d'erreur opt-in**: envoi uniquement sur action utilisateur explicite.
+- 🔐 **Transport des tickets renforcé**: HTTPS-only + TLS minimum 1.2.
+- 🧠 **IA distante bloquée en mode strict**: endpoints locaux uniquement.
+- 🌐 **Liens externes et dashboard distant désactivés** en mode strict.
+- ⬆️ **Vérifications de mise à jour réseau désactivées** en mode strict.
 
 ---
 

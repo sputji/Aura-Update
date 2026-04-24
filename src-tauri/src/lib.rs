@@ -17,7 +17,6 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--auto-start"])));
 
     // On n'active l'instance unique QUE si ce n'est pas un redémarrage Admin
@@ -121,7 +120,12 @@ pub fn run() {
                                 }
                             }
                             "tray_website" => {
-                                let _ = open::that("https://www.auraneo.fr");
+                                if let Some(w) = app.get_webview_window("main") {
+                                    let _ = w.show();
+                                    let _ = w.unminimize();
+                                    let _ = w.set_focus();
+                                    let _ = w.eval("showToast('Mode confidentialité stricte: lien externe désactivé', 'warning')");
+                                }
                             }
                             "tray_quit" => {
                                 app.exit(0);

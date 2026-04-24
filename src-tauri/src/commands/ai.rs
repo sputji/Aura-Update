@@ -1,4 +1,11 @@
 use super::config::AppState;
+
+const STRICT_PRIVACY_MODE: bool = true;
+
+fn is_local_endpoint(endpoint: &str) -> bool {
+    let ep = endpoint.to_lowercase();
+    ep.contains("localhost") || ep.contains("127.0.0.1")
+}
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +30,10 @@ pub async fn list_ai_models(
     endpoint: String,
     api_key: String,
 ) -> Result<Vec<AiModelInfo>, String> {
+    if STRICT_PRIVACY_MODE && !is_local_endpoint(&endpoint) {
+        return Err("Mode confidentialité stricte: seuls les endpoints IA locaux sont autorisés".into());
+    }
+
     let is_local = endpoint.contains("localhost") || endpoint.contains("127.0.0.1");
     let is_auraneo = endpoint.contains("auraneo.fr") || provider == "auraneo";
 
@@ -219,7 +230,7 @@ fn get_fallback_models(provider: &str) -> Vec<AiModelInfo> {
 #[tauri::command]
 pub fn ai_is_available(state: tauri::State<'_, AppState>) -> bool {
     let cfg = state.config.lock().unwrap();
-    let is_local = cfg.ai_endpoint.contains("localhost") || cfg.ai_endpoint.contains("127.0.0.1");
+    let is_local = is_local_endpoint(&cfg.ai_endpoint);
     cfg.ai_enabled && cfg.ai_consent_given && (is_local || !cfg.ai_api_key.is_empty())
 }
 
@@ -251,6 +262,10 @@ pub async fn ai_analyze(
     request: AiRequest,
 ) -> Result<String, String> {
     let cfg = state.config.lock().unwrap().clone();
+
+    if STRICT_PRIVACY_MODE && !is_local_endpoint(&cfg.ai_endpoint) {
+        return Err("Mode confidentialité stricte: analyse IA distante désactivée".into());
+    }
 
     let is_local = cfg.ai_endpoint.contains("localhost") || cfg.ai_endpoint.contains("127.0.0.1");
     if !cfg.ai_enabled || !cfg.ai_consent_given || (!is_local && cfg.ai_api_key.is_empty()) {

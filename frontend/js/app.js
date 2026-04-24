@@ -7,6 +7,8 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
+const STRICT_PRIVACY_MODE = true;
+
 /* ─── State ────────────────────────────────────────────────── */
 const state = {
     config: null,
@@ -30,6 +32,12 @@ const state = {
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
+function isLocalEndpoint(url) {
+    if (!url) return false;
+    const v = String(url).toLowerCase();
+    return v.includes('localhost') || v.includes('127.0.0.1');
+}
+
 /* ─── AI Provider Presets ──────────────────────────────────── */
 const AI_PRESETS = {
     gemini:  { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', needsKey: true  },
@@ -48,6 +56,11 @@ async function loadAIModels(providerKey, forceRefresh = false) {
     const preset = AI_PRESETS[providerKey];
     const endpoint = preset ? preset.endpoint : ($('#aiEndpointInput')?.value || '').trim();
     const apiKey = ($('#aiApiKey')?.value || '').trim();
+
+    if (STRICT_PRIVACY_MODE && !isLocalEndpoint(endpoint)) {
+        sel.innerHTML = '<option value="">' + (t('ai_modele_local_only') || 'Mode strict: IA locale uniquement') + '</option>';
+        return;
+    }
 
     if (!endpoint && providerKey === 'custom') {
         sel.innerHTML = '<option value="">' + (t('ai_model_custom_hint') || '-- Saisissez un endpoint --') + '</option>';
@@ -517,6 +530,13 @@ async function filterInstalledBrowsers() {
 
 /* ─── Updates Tab ──────────────────────────────────────────── */
 async function scanUpdates() {
+    if (STRICT_PRIVACY_MODE) {
+        state.updates = [];
+        renderUpdateList();
+        showToast(t('privacy_updates_disabled') || 'Mode confidentialité stricte: mises à jour réseau désactivées', 'warning');
+        return;
+    }
+
     if (state.busy) return;
     setBusy(true);
 
@@ -1583,6 +1603,16 @@ function closeAppUpdateModal(force = false) {
 }
 
 async function manualCheckAppUpdate(showNoUpdateToast = false) {
+    if (STRICT_PRIVACY_MODE) {
+        if (showNoUpdateToast) showToast(t('privacy_updates_disabled') || 'Mode confidentialité stricte: mises à jour réseau désactivées', 'warning');
+        return {
+            available: false,
+            current_version: state.config?.app_version || '',
+            version: null,
+            release_notes: null,
+        };
+    }
+
     try {
         const info = await invoke('check_app_update');
         if (info.available) {
@@ -1618,12 +1648,18 @@ async function installAppUpdateNow() {
 }
 
 async function startupCheckAppUpdate() {
+    if (STRICT_PRIVACY_MODE) return;
     if (!state.config || state.config.auto_update_on_startup === false) return;
     await manualCheckAppUpdate(false);
 }
 
 /* ─── AI ───────────────────────────────────────────────────── */
 async function openAIHelp(context, contextType) {
+    if (STRICT_PRIVACY_MODE && !isLocalEndpoint(state.config?.ai_endpoint || '')) {
+        showToast(t('ai_local_only') || 'Mode confidentialité stricte: IA distante désactivée', 'warning');
+        return;
+    }
+
     // Check availability
     const available = await invoke('ai_is_available');
     if (!available) {
@@ -1743,6 +1779,11 @@ async function refreshRemoteStatus() {
 }
 
 async function startRemote() {
+    if (STRICT_PRIVACY_MODE) {
+        showToast(t('privacy_remote_disabled') || 'Mode confidentialité stricte: dashboard distant désactivé', 'warning');
+        return;
+    }
+
     // Show loading animation
     $('#remoteOff').classList.add('hidden');
     $('#remoteLoading').classList.remove('hidden');
@@ -1991,6 +2032,10 @@ function bindEvents() {
 
     // Aura Néo web links
     const openExternal = async (url) => {
+        if (STRICT_PRIVACY_MODE) {
+            showToast(t('privacy_links_disabled') || 'Mode confidentialité stricte: liens externes désactivés', 'warning');
+            return;
+        }
         try { await invoke('open_url', { url }); } catch (e) { console.warn('open_url failed', e); }
     };
     $('#btnLinkWebsite').addEventListener('click', () => openExternal('https://www.auraneo.fr'));
@@ -2534,7 +2579,7 @@ async function init() {
 
         const autoScanResults = await Promise.allSettled([
             withTimeout(invoke('get_health_score'), 15000),
-            withTimeout(invoke('check_updates'), 130000),
+            STRICT_PRIVACY_MODE ? Promise.resolve([]) : withTimeout(invoke('check_updates'), 130000),
             withTimeout(invoke('scan_cleanup'), 15000),
             withTimeout(invoke('get_startup_items'), 10000),
             withTimeout(invoke('get_heavy_processes'), 10000),
@@ -2574,7 +2619,7 @@ async function init() {
         // System info badges (non-blocking — runs after main scan)
         loadSystemSpecs();
         initBackupDir();
-        startupCheckAppUpdate();
+        if (!STRICT_PRIVACY_MODE) startupCheckAppUpdate();
 
         splashStatus(t('ready'));
 

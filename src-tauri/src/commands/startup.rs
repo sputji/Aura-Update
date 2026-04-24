@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use std::collections::HashSet;
 
 // Cache to avoid spamming logs for already-warned missing startup paths
+#[cfg(windows)]
 static WARNED_PATHS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
+#[cfg(windows)]
 use std::time::Duration;
 use rayon::prelude::*;
 
@@ -257,6 +258,7 @@ pub async fn run_cleanup(state: tauri::State<'_, AppState>, paths: Vec<String>) 
 
 // ── OS residue scan ──────────────────────────────────────────────────
 #[tauri::command]
+#[cfg_attr(target_os = "macos", allow(unused_mut))]
 pub async fn scan_os_residues() -> Result<CleanupReport, String> {
     let mut items = Vec::new();
 
@@ -333,6 +335,7 @@ pub async fn scan_os_residues() -> Result<CleanupReport, String> {
 
 // ── Clean OS residues ────────────────────────────────────────────────
 #[tauri::command]
+#[cfg_attr(target_os = "macos", allow(unused_mut))]
 pub async fn clean_os_residues(state: tauri::State<'_, AppState>, residues: Vec<String>) -> Result<String, String> {
     let mut results: Vec<String> = Vec::new();
 
@@ -753,6 +756,7 @@ pub async fn scan_browser_caches() -> Result<CleanupReport, String> {
 }
 
 // ── Known bloatware list ─────────────────────────────────────────────
+#[cfg(windows)]
 const BLOATWARE_LIST: &[&str] = &[
     "Microsoft.BingNews",
     "Microsoft.BingWeather",
@@ -975,7 +979,10 @@ pub async fn purge_bloatwares(selection: Vec<String>) -> Result<String, String> 
 // ── Restore selected bloatwares ─────────────────────────────────────
 #[tauri::command]
 pub async fn restore_bloatwares(selection: Vec<String>) -> Result<String, String> {
+    #[cfg(windows)]
     let mut restored_count = 0;
+    #[cfg(not(windows))]
+    let restored_count = 0;
 
     #[cfg(windows)]
     {
@@ -1024,7 +1031,10 @@ pub async fn restore_bloatwares(selection: Vec<String>) -> Result<String, String
 // ── Disable telemetry services ───────────────────────────────────────
 #[tauri::command]
 pub async fn disable_telemetry() -> Result<Vec<String>, String> {
+    #[cfg(windows)]
     let mut disabled = Vec::new();
+    #[cfg(not(windows))]
+    let disabled: Vec<String> = Vec::new();
 
     #[cfg(windows)]
     {

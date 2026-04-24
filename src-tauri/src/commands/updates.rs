@@ -3,9 +3,12 @@ use tauri::Emitter;
 use tauri::menu::{Menu, MenuItem};
 use tauri_plugin_updater::UpdaterExt;
 use tokio::process::Command;
+#[cfg(windows)]
 use std::time::Duration;
 
 use super::config::AppState;
+
+const STRICT_PRIVACY_MODE: bool = true;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePackage {
@@ -93,6 +96,15 @@ pub fn set_tray_update_available(
 
 #[tauri::command]
 pub async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
+    if STRICT_PRIVACY_MODE {
+        return Ok(AppUpdateInfo {
+            available: false,
+            current_version: app.package_info().version.to_string(),
+            version: None,
+            release_notes: Some("Mode confidentialité stricte: vérification réseau désactivée".to_string()),
+        });
+    }
+
     let current_version = app.package_info().version.to_string();
     let update = app
         .updater()
@@ -127,6 +139,10 @@ pub async fn install_app_update(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
+    if STRICT_PRIVACY_MODE {
+        return Err("Mode confidentialité stricte: installation réseau désactivée".into());
+    }
+
     {
         let mut guard = state.app_update_in_progress.lock().unwrap();
         if *guard {
@@ -213,6 +229,10 @@ pub async fn install_app_update(
 // ── Main command ─────────────────────────────────────────────────────
 #[tauri::command]
 pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
+    if STRICT_PRIVACY_MODE {
+        return Ok(Vec::new());
+    }
+
     let mut all = Vec::new();
 
     #[cfg(windows)]
@@ -279,6 +299,10 @@ pub async fn install_update(
     app: tauri::AppHandle,
     pkg: UpdatePackage,
 ) -> Result<bool, String> {
+    if STRICT_PRIVACY_MODE {
+        return Err("Mode confidentialité stricte: installation réseau désactivée".into());
+    }
+
     let id = pkg.id.clone();
 
     app.emit("update-progress", serde_json::json!({

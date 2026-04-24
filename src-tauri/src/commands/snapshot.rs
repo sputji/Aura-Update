@@ -234,7 +234,7 @@ async fn has_support_impl() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-async fn create_impl(label: &str) -> Result<String, String> {
+async fn create_impl(_label: &str) -> Result<String, String> {
     let out = Command::new("tmutil")
         .args(["localsnapshot"])
         .output()

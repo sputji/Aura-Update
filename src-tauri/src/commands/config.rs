@@ -74,7 +74,7 @@ pub struct Config {
 fn default_true() -> bool { true }
 fn default_startup_mode() -> String { "visible".into() }
 fn default_disabled() -> String { "disabled".into() }
-fn default_ai_model() -> String { "aura-ia".into() }
+fn default_ai_model() -> String { "llama3".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -82,10 +82,10 @@ impl Default for Config {
             language: "fr".into(),
             theme: "dark".into(),
             ai_enabled: false,
-            ai_endpoint: "https://ia.auraneo.fr".into(),
+            ai_endpoint: "http://localhost:11434".into(),
             ai_api_key: String::new(),
             ai_app_key: "aura_aura_update_mmkzgiz4".into(),
-            ai_model: "aura-ia".into(),
+            ai_model: default_ai_model(),
             ai_consent_given: false,
             scheduler_enabled: false,
             scheduler_interval: "disabled".into(),
@@ -103,7 +103,7 @@ impl Default for Config {
             close_to_tray: false,
             auto_clean_enabled: false,
             auto_clean_interval: "disabled".into(),
-            auto_update_on_startup: true,
+            auto_update_on_startup: false,
         }
     }
 }
@@ -221,6 +221,11 @@ pub fn get_predicted_cleanup_gain(state: tauri::State<'_, AppState>) -> u64 {
 /// Only allows https:// and http:// URLs for security.
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
+    const STRICT_PRIVACY_MODE: bool = true;
+    if STRICT_PRIVACY_MODE {
+        return Err("Mode confidentialité stricte: liens externes désactivés".into());
+    }
+
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err("Only http/https URLs are allowed".into());
     }

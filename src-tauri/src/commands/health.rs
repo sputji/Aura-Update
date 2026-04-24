@@ -10,6 +10,7 @@ use std::time::Instant;
 static CACHED_HEALTH_SCORE: AtomicU8 = AtomicU8::new(0);
 
 /// Battery cache: avoids spawning PowerShell every 5 s (refreshVitals interval).
+#[cfg(windows)]
 static BATTERY_CACHE: Mutex<Option<(Instant, (Option<u8>, bool))>> = Mutex::new(None);
 
 /// Components cache: avoids re-enumerating sensors every call.

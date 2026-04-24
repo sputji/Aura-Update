@@ -6,6 +6,8 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use warp::Filter;
 
+const STRICT_PRIVACY_MODE: bool = true;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteInfo {
     pub url: String,
@@ -55,6 +57,10 @@ pub async fn start_remote(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<RemoteInfo, String> {
+  if STRICT_PRIVACY_MODE {
+    return Err("Mode confidentialité stricte: dashboard distant désactivé".into());
+  }
+
     // Check if already running — stop previous server first to avoid stale state
     let was_running = {
         let port = state.remote_port.lock().unwrap();

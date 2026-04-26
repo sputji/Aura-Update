@@ -170,19 +170,50 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          latest_file="$(find dist -type f \( -name 'latest.json' -o -name 'latest-*.json' \) | head -n1 || true)"
-          if [ -n "${latest_file}" ]; then
-            cp "${latest_file}" dist/updater.json
-          else
-            cat > dist/updater.json <<EOF
-          {
-            "version": "${GITHUB_REF_NAME#v}",
-            "notes": "Release ${GITHUB_REF_NAME}",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {}
+          version="${GITHUB_REF_NAME#v}"
+          pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Helper: lit signature .sig si pr\u00e9sente, sinon cha\u00eene vide
+          read_sig() {
+            local sig_file="$1"
+            [ -f "${sig_file}" ] && cat "${sig_file}" || echo ""
           }
-          EOF
-          fi
+
+          # D\u00e9tection des artefacts par plateforme
+          win_msi=$(find dist -type f -name "*.msi" | head -n1 || true)
+          win_nsis=$(find dist -type f -name "*setup*.exe" | head -n1 || true)
+          mac_dmg=$(find dist -type f -name "*.dmg" | head -n1 || true)
+          mac_app_tar=$(find dist -type f -name "*.app.tar.gz" | head -n1 || true)
+          linux_appimage=$(find dist -type f -name "*.AppImage" | head -n1 || true)
+          linux_deb=$(find dist -type f -name "*.deb" | head -n1 || true)
+
+          # Construction des plateformes
+          platforms="{}"
+
+          add_platform() {
+            local key="$1" file="$2"
+            [ -z "${file}" ] && return 0
+            local fname=$(basename "${file}")
+            local sig=$(read_sig "${file}.sig")
+            local url="https://github.com/sputji/Aura-Update/releases/download/${GITHUB_REF_NAME}/${fname}"
+            platforms=$(jq --arg k "${key}" --arg s "${sig}" --arg u "${url}" \
+              '. + {($k): {signature: $s, url: $u}}' <<< "${platforms}")
+          }
+
+          # Cl\u00e9s plateformes attendues par tauri-plugin-updater
+          add_platform "windows-x86_64"        "${win_nsis:-${win_msi}}"
+          add_platform "windows-x86_64-nsis"   "${win_nsis}"
+          add_platform "windows-x86_64-msi"    "${win_msi}"
+          add_platform "darwin-aarch64"        "${mac_app_tar:-${mac_dmg}}"
+          add_platform "darwin-x86_64"         "${mac_app_tar:-${mac_dmg}}"
+          add_platform "darwin-universal"      "${mac_app_tar:-${mac_dmg}}"
+          add_platform "linux-x86_64"          "${linux_appimage:-${linux_deb}}"
+
+          jq -n --arg v "${version}" --arg n "Release ${GITHUB_REF_NAME}" --arg d "${pub_date}" --argjson p "${platforms}" \
+            '{version:$v, notes:$n, pub_date:$d, platforms:$p}' > dist/updater.json
+
+          echo "=== updater.json ==="
+          cat dist/updater.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -198,5 +229,6 @@ jobs:
             dist/**/*.rpm
             dist/**/*.AppImage
             dist/**/*.sig
+            dist/updater.json
             dist/**/latest*.json
             dist/updater.json

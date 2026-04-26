@@ -29,7 +29,7 @@
   },
   "plugins": {
     "updater": {
-      "active": false,
+      "active": true,
       "dialog": false,
       "endpoints": [
         "https://github.com/sputji/Aura-Update/releases/latest/download/updater.json"

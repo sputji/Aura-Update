@@ -8,6 +8,8 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const STRICT_PRIVACY_MODE = true;
+// Updater réactivé en mode standard (v2.2.8+) indépendamment du mode privacy IA/Télémétrie.
+const UPDATER_ENABLED = true;
 
 /* ─── State ────────────────────────────────────────────────── */
 const state = {
@@ -1423,6 +1425,12 @@ async function runAutoPilot() {
         showToast(t('autopilot_done'), 'success');
         playAutoPilotSuccess();
         scanUpdates();
+
+        // 3. Réparation système rapide (best-effort)
+        try {
+            statusEl.textContent = t('autopilot_step_repair') || 'Réparation système…';
+            await invoke('maintenance_repair_system');
+        } catch (_e) { /* non bloquant */ }
     } catch (e) {
         statusEl.textContent = t('autopilot_error');
         showToast(t('error') + ': ' + e, 'error');
@@ -1603,8 +1611,8 @@ function closeAppUpdateModal(force = false) {
 }
 
 async function manualCheckAppUpdate(showNoUpdateToast = false) {
-    if (STRICT_PRIVACY_MODE) {
-        if (showNoUpdateToast) showToast(t('privacy_updates_disabled') || 'Mode confidentialité stricte: mises à jour réseau désactivées', 'warning');
+    if (!UPDATER_ENABLED) {
+        if (showNoUpdateToast) showToast(t('privacy_updates_disabled') || 'Vérification de mise à jour désactivée', 'warning');
         return {
             available: false,
             current_version: state.config?.app_version || '',
@@ -1617,6 +1625,7 @@ async function manualCheckAppUpdate(showNoUpdateToast = false) {
         const info = await invoke('check_app_update');
         if (info.available) {
             await invoke('set_tray_update_available', { available: true, version: info.version });
+            tryNotifyUpdateAvailable(info);
             openAppUpdateModal(info);
         } else {
             await invoke('set_tray_update_available', { available: false, version: null });
@@ -1627,6 +1636,26 @@ async function manualCheckAppUpdate(showNoUpdateToast = false) {
         if (showNoUpdateToast) showToast(t('error') + ': ' + e, 'error');
         return null;
     }
+}
+
+/**
+ * Affiche une notification système native pour signaler qu'une mise à jour est disponible.
+ * Utilise l'API Web Notification (incluse dans WebView2 / WKWebView / WebKitGTK).
+ */
+function tryNotifyUpdateAvailable(info) {
+    try {
+        if (!('Notification' in window)) return;
+        const ver = info.version || '';
+        const title = t('app_update_native_title') || 'Aura Update — Mise à jour disponible';
+        const body = (t('app_update_native_body') || 'Une nouvelle version est disponible : {v}').replace('{v}', ver);
+        const show = () => {
+            try { new Notification(title, { body, icon: 'aura.png', tag: 'aura-update-available' }); } catch (_) {}
+        };
+        if (Notification.permission === 'granted') { show(); return; }
+        if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(p => { if (p === 'granted') show(); });
+        }
+    } catch (_) { /* silencieux */ }
 }
 
 async function installAppUpdateNow() {
@@ -1648,7 +1677,7 @@ async function installAppUpdateNow() {
 }
 
 async function startupCheckAppUpdate() {
-    if (STRICT_PRIVACY_MODE) return;
+    if (!UPDATER_ENABLED) return;
     if (!state.config || state.config.auto_update_on_startup === false) return;
     await manualCheckAppUpdate(false);
 }
@@ -1967,6 +1996,10 @@ function bindEvents() {
     $('#btnScanClean').addEventListener('click', scanCleanup);
     $('#btnRunClean').addEventListener('click', runCleanup);
     $('#btnScanResidues').addEventListener('click', scanResidues);
+
+    // Bouton "V\u00e9rifier Aura Update" dans l'onglet Updates
+    const btnCheckAura = $('#btnCheckAuraUpdate');
+    if (btnCheckAura) btnCheckAura.addEventListener('click', () => manualCheckAppUpdate(true));
 
     // Startup tab
     $('#btnLoadStartup').addEventListener('click', loadStartupItems);
@@ -2619,7 +2652,8 @@ async function init() {
         // System info badges (non-blocking — runs after main scan)
         loadSystemSpecs();
         initBackupDir();
-        if (!STRICT_PRIVACY_MODE) startupCheckAppUpdate();
+        // Updater est indépendant du mode privacy IA :
+        if (UPDATER_ENABLED) startupCheckAppUpdate();
 
         splashStatus(t('ready'));
 
@@ -2841,31 +2875,33 @@ async function runMaintenanceTask(taskId, command, btnId) {
     const btn = $(`#${btnId}`);
     const progEl = $(`#prog-${taskId.replace(/_/g, '-')}`);
     const outEl = $(`#out-${taskId.replace(/_/g, '-')}`);
-    const card = btn.closest('.maintenance-card');
+    const card = btn ? btn.closest('.maintenance-card') : null;
+    const originalLabel = btn ? btn.textContent : '';
 
-    // Désactiver le bouton pendant l'exécution
-    btn.disabled = true;
-    btn.textContent = '⏳';
-    card.classList.remove('done', 'error');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳';
+    }
+    if (card) card.classList.remove('done', 'error');
 
-    // Afficher la zone de progression
-    progEl.classList.remove('hidden');
-    outEl.textContent = t('maintenance_running') || 'En cours…';
+    if (progEl) progEl.classList.remove('hidden');
+    if (outEl) outEl.textContent = t('maintenance_running') || 'En cours…';
 
     try {
         const result = await invoke(command);
-        outEl.textContent = result || t('maintenance_done') || 'Terminé.';
-        card.classList.add('done');
+        if (outEl) outEl.textContent = result || t('maintenance_done') || 'Terminé.';
+        if (card) card.classList.add('done');
         showToast(t('maintenance_done') || 'Opération terminée.', 'success');
     } catch (err) {
-        outEl.textContent = String(err);
-        card.classList.add('error');
+        if (outEl) outEl.textContent = String(err);
+        if (card) card.classList.add('error');
         showToast(String(err), 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = t('btn_run') || 'Exécuter';
-        // Stopper l'animation indeterminate
-        const fill = progEl.querySelector('.maintenance-progress-fill');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalLabel || t('btn_run') || 'Exécuter';
+        }
+        const fill = progEl ? progEl.querySelector('.maintenance-progress-fill') : null;
         if (fill) fill.classList.remove('indeterminate');
     }
 }

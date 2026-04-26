@@ -317,5 +317,11 @@
     "maintenance_sfc": "System File Check (SFC)",
     "maintenance_dism": "Image Repair (DISM)",
     "maintenance_cleanup": "Deep Cleanup",
+    "engines_title": "Engines & Package Managers",
+    "engines_subtitle": "Update Git and application package managers.",
+    "btn_check_aura_update": "Check Aura Update",
+    "app_update_native_title": "Aura Update — Update available",
+    "app_update_native_body": "A new version is available: {v}",
+    "autopilot_step_repair": "System repair…",
     "btn_run": "Run"
 }

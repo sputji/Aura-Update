@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use super::config::AppState;
 
-const STRICT_PRIVACY_MODE: bool = true;
+// Module Updates: réactivé (mode standard avec vérification automatique).
+// Le mode confidentialité strict reste actif sur les modules IA / Remote / Telemetry.
+const STRICT_PRIVACY_MODE: bool = false;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePackage {

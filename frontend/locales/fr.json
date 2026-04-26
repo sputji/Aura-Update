@@ -317,5 +317,11 @@
     "btn_run": "Exécuter",
     "maintenance_sfc": "Vérification système (SFC)",
     "maintenance_dism": "Réparation de l'image (DISM)",
-    "maintenance_cleanup": "Nettoyage approfondi"
+    "maintenance_cleanup": "Nettoyage approfondi",
+    "engines_title": "Moteurs & Gestionnaires",
+    "engines_subtitle": "Mise à jour de Git et des gestionnaires d'applications.",
+    "btn_check_aura_update": "Vérifier Aura Update",
+    "app_update_native_title": "Aura Update — Mise à jour disponible",
+    "app_update_native_body": "Une nouvelle version est disponible : {v}",
+    "autopilot_step_repair": "Réparation système…"
 }

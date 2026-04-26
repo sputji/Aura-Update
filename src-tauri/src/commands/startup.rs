@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
 use std::sync::Mutex;
+#[cfg(windows)]
 use std::collections::HashSet;
 
 // Cache to avoid spamming logs for already-warned missing startup paths

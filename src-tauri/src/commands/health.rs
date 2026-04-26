@@ -3,6 +3,7 @@ use tauri::Manager;
 use sysinfo::Components;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
+#[cfg(windows)]
 use std::time::Instant;
 
 /// Cached full health score, updated by get_health_score().

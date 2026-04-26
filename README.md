@@ -39,7 +39,7 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 | 📂 **Backup** | Dossier de sauvegarde personnalisable |
 | 🎓 **Tutoriel** | Guide interactif au premier lancement |
 | 🌍 **Bilingue** | Interface FR/EN avec changement instantané |
-| ⬆️ **Auto-Update App** | Désactivé en mode confidentialité stricte |
+| ⬆️ **Auto-Update App** | Vérification au démarrage + notification GUI native (réactivé en v2.2.8) |
 
 ---
 
@@ -133,13 +133,26 @@ Toute redistribution non autorisée est interdite.
 
 ## 📋 Changelog v2.2.8
 
-- 🔒 **Confidentialité stricte activée**: aucune communication réseau automatique.
-- 📴 **Offline-first**: application pleinement utilisable sans Internet.
-- 🧾 **Rapport d'erreur opt-in**: envoi uniquement sur action utilisateur explicite.
-- 🔐 **Transport des tickets renforcé**: HTTPS-only + TLS minimum 1.2.
-- 🧠 **IA distante bloquée en mode strict**: endpoints locaux uniquement.
-- 🌐 **Liens externes et dashboard distant désactivés** en mode strict.
-- ⬆️ **Vérifications de mise à jour réseau désactivées** en mode strict.
+### 🐛 Corrections critiques
+- 🔧 **Fix updater « fallback platforms »** — Erreur `None of the fallback platforms ["windows-x86_64-nsis", "windows-x86_64"] were found` corrigée. Le workflow de release génère désormais un `updater.json` complet avec toutes les clés plateformes attendues par `tauri-plugin-updater` (`windows-x86_64`, `windows-x86_64-nsis`, `windows-x86_64-msi`, `darwin-aarch64`, `darwin-x86_64`, `darwin-universal`, `linux-x86_64`).
+- ⬆️ **Auto-Update réactivé** — `updater.active = true`, vérification automatique au démarrage et notification GUI native (Web Notification API) lorsqu'une mise à jour est disponible. Découplé du mode confidentialité stricte via le flag dédié `UPDATER_ENABLED`.
+- 🦀 **Warnings Rust éliminés** — Imports `Instant`, `Mutex`, `HashSet` correctement gatés derrière `#[cfg(windows)]` (build Linux/macOS propre, 0 warning).
+
+### 🎨 Centralisation UX (refonte des onglets)
+- 📥 **Onglet Mises à jour** — Centralise tout : scan OS + bouton « Vérifier Aura Update » + moteurs (Git CLI, Apps).
+- 🧹 **Onglet Nettoyage** — Centralise tout le nettoyage système et bloatwares.
+- 🩺 **Onglet Maintenance** — Réservé exclusivement à la santé système (SFC / DISM / Vérification disque).
+- 🚗 **Onglet Auto-Pilote** — Séquence linéaire : Nettoyage → Mises à jour → Santé.
+
+### 🔒 Confidentialité (rappel v2.2.7+)
+- 📴 **Offline-first** : l'application reste pleinement utilisable sans Internet.
+- 🧾 **Rapport d'erreur opt-in** : envoi uniquement sur action utilisateur explicite.
+- 🔐 **Transport tickets** : HTTPS-only + TLS minimum 1.2.
+- 🧠 **IA distante bloquée en mode strict** : endpoints locaux uniquement.
+
+### 🚀 Workflow CI/CD
+- 🏷️ **Versionnage 100 % dynamique** — Le workflow `build-release.yml` utilise `${{ github.ref_name }}` pour le tag, le titre de release et les URLs des assets. Plus aucune valeur hardcodée.
+- 📦 **Génération `updater.json`** — Construit automatiquement via `jq` à partir des artefacts buildés et de leurs signatures `.sig`.
 
 ---
 

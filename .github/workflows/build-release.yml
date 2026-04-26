@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# Aura Update v2.2.5 — Script Ultime de Production
+# Aura Update v2.2.8 — Script Ultime de Production
 # Build multi-OS + GitHub Release automatique
 # Déclenché : push tag v*  |  bouton manuel
 # ─────────────────────────────────────────────────────────────
@@ -218,6 +218,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: "Aura Update ${{ github.ref_name }}"
           draft: false
           generate_release_notes: true
@@ -231,4 +232,3 @@ jobs:
             dist/**/*.sig
             dist/updater.json
             dist/**/latest*.json
-            dist/updater.json

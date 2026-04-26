@@ -29,12 +29,12 @@
   },
   "plugins": {
     "updater": {
-      "active": true,
+      "active": false,
       "dialog": false,
       "endpoints": [
         "https://github.com/sputji/Aura-Update/releases/latest/download/updater.json"
       ],
-      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk1MDI5MzNDMTQ0Mjk2MjMKUldRamxrSVVQSk1DbFQ0L1RCeXMrRjFsVU85RjhSczdTVzhQSDhiNHBJWWlSQmxjVXN5MlJJbEIK"
     }
   },
   "bundle": {

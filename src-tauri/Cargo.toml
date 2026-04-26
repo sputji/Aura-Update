@@ -42,4 +42,5 @@ opt-level = "s"
 strip = true
 lto = true
 codegen-units = 1
-panic = "abort"
+# panic = "unwind" (défaut) — permet au panic hook de logger avant terminaison.
+# Précédemment "abort" causait des crashes silencieux invisibles dans les logs.

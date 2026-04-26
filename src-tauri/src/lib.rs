@@ -8,6 +8,16 @@ use tauri::menu::{Menu, MenuItem};
 
 /// Entry point for Aura Update desktop application (Tauri 2).
 pub fn run() {
+    // Panic hook — écrit dans le log avant un éventuel abort silencieux.
+    // Indispensable car `panic = "abort"` en release écrase tout output sans trace.
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("PANIC: {}\nLocation: {:?}", info, info.location());
+        // Best-effort: log via notre système + stderr + fichier de secours
+        eprintln!("{}", msg);
+        let panic_log = commands::config::get_portable_dir().join("panic.log");
+        let _ = std::fs::write(&panic_log, &msg);
+    }));
+
     let args: Vec<String> = std::env::args().collect();
     let is_admin_relaunch = args.contains(&"--admin-relaunch".to_string());
 
@@ -17,6 +27,7 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--auto-start"])));
 
     // On n'active l'instance unique QUE si ce n'est pas un redémarrage Admin

@@ -314,5 +314,8 @@
     "maint_clean_desc": "Supprime les fichiers inutiles via l’outil natif du système d’exploitation.",
     "maintenance_running": "En cours…",
     "maintenance_done": "Opération terminée avec succès.",
-    "btn_run": "Exécuter"
+    "btn_run": "Exécuter",
+    "maintenance_sfc": "Vérification système (SFC)",
+    "maintenance_dism": "Réparation de l'image (DISM)",
+    "maintenance_cleanup": "Nettoyage approfondi"
 }

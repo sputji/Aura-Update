@@ -314,5 +314,8 @@
     "maint_clean_desc": "Removes unnecessary files using the OS built-in cleanup tool.",
     "maintenance_running": "Running…",
     "maintenance_done": "Operation completed successfully.",
+    "maintenance_sfc": "System File Check (SFC)",
+    "maintenance_dism": "Image Repair (DISM)",
+    "maintenance_cleanup": "Deep Cleanup",
     "btn_run": "Run"
 }

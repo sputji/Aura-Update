@@ -131,17 +131,6 @@ Toute redistribution non autorisée est interdite.
 
 ---
 
-## 📋 Changelog v2.2.7
-
-- ⬆️ **Auto-Update applicatif multi-OS** intégré dans l'application
-- 🧭 **Tray dynamique** avec action de vérification et indication “nouvelle version”
-- 🪟 **Modal de mise à jour premium** (notes de version, progression, verrouillage de fermeture)
-- ⚙️ **Nouveau réglage utilisateur** pour activer/désactiver la vérification au démarrage
-- 🧹 **Sécurité cleanup Windows**: suppression Xbox/Game Bar retirée de la purge bloatware
-- ♻️ **Réactivation bloatwares**: ajout de la restauration de sélection
-
----
-
 ## 📋 Changelog v2.2.8
 
 - 🔒 **Confidentialité stricte activée**: aucune communication réseau automatique.
@@ -151,6 +140,17 @@ Toute redistribution non autorisée est interdite.
 - 🧠 **IA distante bloquée en mode strict**: endpoints locaux uniquement.
 - 🌐 **Liens externes et dashboard distant désactivés** en mode strict.
 - ⬆️ **Vérifications de mise à jour réseau désactivées** en mode strict.
+
+---
+
+## 📋 Changelog v2.2.7
+
+- ⬆️ **Auto-Update applicatif multi-OS** intégré dans l'application
+- 🧭 **Tray dynamique** avec action de vérification et indication “nouvelle version”
+- 🪟 **Modal de mise à jour premium** (notes de version, progression, verrouillage de fermeture)
+- ⚙️ **Nouveau réglage utilisateur** pour activer/désactiver la vérification au démarrage
+- 🧹 **Sécurité cleanup Windows**: suppression Xbox/Game Bar retirée de la purge bloatware
+- ♻️ **Réactivation bloatwares**: ajout de la restauration de sélection
 
 ---
 

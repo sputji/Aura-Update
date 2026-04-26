@@ -6,6 +6,10 @@ progress/
 *.log
 *.vbs
 
+# Privacy: crash logs locaux (ne JAMAIS committer)
+Crash Log User/
+**/Crash Log User/
+
 # Rust / Tauri build artifacts
 src-tauri/target/
 src-tauri/gen/schemas/

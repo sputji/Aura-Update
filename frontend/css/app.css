@@ -2495,6 +2495,21 @@ body {
 .maintenance-card-actions {
     margin-top: auto;
     padding-top: 6px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Variant compact du bouton Turbo pour la grille Maintenance */
+.btn-turbo-sm {
+    margin-top: 0;
+    padding: 10px 24px;
+    font-size: .78rem;
+    letter-spacing: .8px;
+}
+.btn-turbo-sm:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Barre de progression + output */

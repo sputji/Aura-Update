@@ -338,6 +338,33 @@
                     </div>
                 </div>
 
+                <div class="turbo-grid" style="margin-bottom:14px;">
+                    <div class="turbo-card mini">
+                        <span>🎛️</span>
+                        <h3 data-i18n="turbo_profiles_title">Profils Turbo</h3>
+                        <p data-i18n="turbo_profiles_desc">Créez des profils persistants avec whitelist et blacklist de processus.</p>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                            <select id="turboProfileSelect" class="input-field" style="min-width:180px;"></select>
+                            <button id="btnApplyTurboProfile" class="btn btn-sm btn-primary" data-i18n="btn_apply">Appliquer</button>
+                        </div>
+                        <input id="turboProfileName" class="input-field" placeholder="Jeux" style="margin-top:8px;" />
+                        <textarea id="turboWhitelist" class="input-field" rows="2" placeholder="discord,obs64"></textarea>
+                        <textarea id="turboBlacklist" class="input-field" rows="2" placeholder="chrome,teams,spotify"></textarea>
+                        <button id="btnSaveTurboProfile" class="btn btn-sm btn-accent" data-i18n="btn_save_profile">Enregistrer le profil</button>
+                    </div>
+
+                    <div class="turbo-card mini" id="batteryModeCard">
+                        <span>🔋</span>
+                        <h3 data-i18n="battery_modes_title">Modes Batterie</h3>
+                        <p id="batteryModeStatus" data-i18n="battery_mode_ready">Détection matériel en cours…</p>
+                        <div class="setting-options" style="margin-top:8px;">
+                            <button id="btnBatteryEco" class="btn-option" data-battery-mode="eco">ECO</button>
+                            <button id="btnBatteryNormal" class="btn-option" data-battery-mode="normal">NORMAL</button>
+                            <button id="btnBatteryExtreme" class="btn-option" data-battery-mode="extreme">EXTRÊME</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ── Browser Cache Scan (Granular) ── -->
                 <div class="turbo-card browser-granular-section" id="browserGranularSection">
                     <div class="turbo-header">

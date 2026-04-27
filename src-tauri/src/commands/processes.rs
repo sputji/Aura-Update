@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{System, ProcessesToUpdate};
 use std::sync::Mutex;
 
+use crate::commands::config::{self, AppState, TurboProfile};
+
 #[cfg(windows)]
 use std::process::Command as StdCommand;
 #[cfg(windows)]
@@ -69,22 +71,42 @@ pub fn kill_process(pid: u32) -> Result<bool, String> {
 /// Toggle Game Mode: suspend or resume heavy non-essential processes.
 /// Also applies system-wide performance optimizations.
 #[tauri::command]
-pub async fn toggle_game_mode(activate: bool) -> Result<bool, String> {
+pub async fn toggle_game_mode(activate: bool, state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    let (active_profile_name, profiles) = {
+        let cfg = state.config.lock().unwrap();
+        (cfg.active_turbo_profile.clone(), cfg.turbo_profiles.clone())
+    };
+
+    let profile = profiles
+        .iter()
+        .find(|p| p.name.eq_ignore_ascii_case(&active_profile_name))
+        .cloned()
+        .or_else(|| profiles.first().cloned());
+
     // Fire-and-forget: spawn in background so the UI isn't blocked
     tokio::spawn(async move {
         let _ = tokio::task::spawn_blocking(move || {
-            toggle_game_mode_sync(activate)
+            toggle_game_mode_sync(activate, profile)
         }).await;
     });
     Ok(true)
 }
 
-fn toggle_game_mode_sync(activate: bool) -> Result<Vec<String>, String> {
+fn toggle_game_mode_sync(activate: bool, profile: Option<TurboProfile>) -> Result<Vec<String>, String> {
     // Apps to suspend for maximum FPS / performance
-    let targets = ["chrome", "msedge", "spotify", "discord", "teams", "adobe",
+    let default_targets = ["chrome", "msedge", "spotify", "discord", "teams", "adobe",
                    "onedrive", "searchindexer", "widgets", "cortana",
                    "yourphone", "gamebar", "skype", "slack", "zoom",
                    "dropbox", "googledrive", "icloud"];
+
+    let (whitelist, blacklist): (Vec<String>, Vec<String>) = if let Some(p) = &profile {
+        (
+            p.whitelist.iter().map(|s| s.to_lowercase()).collect(),
+            p.blacklist.iter().map(|s| s.to_lowercase()).collect(),
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
 
     // Scan processes ONCE — no repeated polling loop
     let mut sys = System::new();
@@ -94,7 +116,13 @@ fn toggle_game_mode_sync(activate: bool) -> Result<Vec<String>, String> {
     let matching: Vec<(u32, String)> = sys.processes().values()
         .filter(|p| {
             let name = p.name().to_string_lossy().to_lowercase();
-            targets.iter().any(|t| name.contains(t))
+            if whitelist.iter().any(|w| name.contains(w)) {
+                return false;
+            }
+
+            let in_default = default_targets.iter().any(|t| name.contains(t));
+            let in_blacklist = blacklist.iter().any(|b| name.contains(b));
+            in_default || in_blacklist
         })
         .map(|p| (p.pid().as_u32(), p.name().to_string_lossy().to_string()))
         .collect();
@@ -325,4 +353,45 @@ try {
     }
 
     Ok(affected)
+}
+
+#[tauri::command]
+pub fn get_turbo_profiles(state: tauri::State<'_, AppState>) -> Vec<TurboProfile> {
+    state.config.lock().unwrap().turbo_profiles.clone()
+}
+
+#[tauri::command]
+pub fn save_turbo_profile(state: tauri::State<'_, AppState>, profile: TurboProfile) -> Result<bool, String> {
+    let mut cfg = state.config.lock().unwrap();
+    if profile.name.trim().is_empty() {
+        return Err("Le nom du profil est requis".into());
+    }
+
+    if let Some(existing) = cfg
+        .turbo_profiles
+        .iter_mut()
+        .find(|p| p.name.eq_ignore_ascii_case(&profile.name))
+    {
+        *existing = profile.clone();
+    } else {
+        cfg.turbo_profiles.push(profile.clone());
+    }
+
+    if cfg.active_turbo_profile.trim().is_empty() {
+        cfg.active_turbo_profile = profile.name;
+    }
+
+    config::save_config(&state.data_dir, &cfg);
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn set_active_turbo_profile(state: tauri::State<'_, AppState>, name: String) -> Result<bool, String> {
+    let mut cfg = state.config.lock().unwrap();
+    if !cfg.turbo_profiles.iter().any(|p| p.name.eq_ignore_ascii_case(&name)) {
+        return Err("Profil introuvable".into());
+    }
+    cfg.active_turbo_profile = name;
+    config::save_config(&state.data_dir, &cfg);
+    Ok(true)
 }

@@ -152,6 +152,12 @@ Toute redistribution non autorisée est interdite.
 - 🟠 **Mode dégradé visuel** — Alerte UI si aucun heartbeat récent (évite les faux gels silencieux).
 - 🚗 **Auto-Pilote réaligné** — Séquence backend: Nettoyage → Résidus → Updates → Santé.
 
+### ⚙️ Hardware & Modes Pro (P3)
+- ❄️ **Cool Boost provider-based** — Ajout d'un endpoint de détection provider (`get_cool_boost_providers`) avec remontée du provider détecté côté UI.
+- 🔋 **Modes batterie intelligents** — Nouveau backend `power` avec détection Laptop/Desktop et modes exclusifs `ECO`, `NORMAL`, `EXTREME` persistés en configuration.
+- 🎮 **Profils Turbo persistants** — Profils nommés (Jeux/Live/Work + custom) avec `whitelist` et `blacklist` de processus, applicables en un clic.
+- ♻️ **Turbo plus contextuel** — `toggle_game_mode` applique désormais le profil actif pour éviter de suspendre les applis autorisées (ex: Discord/OBS).
+
 ### 🚀 Déploiement v2.2.9 (P4)
 - 🔖 **Version alignée** dans `Cargo.toml`, `package.json`, `tauri.conf.json`.
 - 🔄 **Updater actif** dans la config Tauri avec endpoint release + clé publique valide.

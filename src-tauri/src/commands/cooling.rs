@@ -10,6 +10,54 @@ pub struct CoolBoostResult {
     pub log: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoolBoostProviders {
+    pub detected: String,
+    pub available: Vec<String>,
+}
+
+#[tauri::command]
+pub fn get_cool_boost_providers() -> CoolBoostProviders {
+    let mut detected = "generic".to_string();
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        use std::process::Command;
+        if let Ok(o) = Command::new("powershell")
+            .args(["-NoProfile", "-Command", "(Get-CimInstance Win32_BaseBoard).Manufacturer"])
+            .creation_flags(0x0800_0000)
+            .output()
+        {
+            let vendor = String::from_utf8_lossy(&o.stdout).trim().to_lowercase();
+            if vendor.contains("msi") { detected = "msi".into(); }
+            else if vendor.contains("asus") { detected = "asus".into(); }
+            else if vendor.contains("alienware") || vendor.contains("dell") { detected = "alienware".into(); }
+            else if vendor.contains("lenovo") { detected = "lenovo".into(); }
+            else if vendor.contains("hp") { detected = "hp".into(); }
+            else if vendor.contains("acer") { detected = "acer".into(); }
+            else if vendor.contains("corsair") { detected = "corsair".into(); }
+            else if vendor.contains("gigabyte") || vendor.contains("aorus") { detected = "gigabyte".into(); }
+        }
+    }
+
+    CoolBoostProviders {
+        detected,
+        available: vec![
+            "nvidia".into(),
+            "amd".into(),
+            "msi".into(),
+            "asus".into(),
+            "alienware".into(),
+            "lenovo".into(),
+            "hp".into(),
+            "acer".into(),
+            "corsair".into(),
+            "generic".into(),
+        ],
+    }
+}
+
 /// Activate or deactivate fan boost.
 ///
 /// Platform-specific:
@@ -20,7 +68,21 @@ pub struct CoolBoostResult {
 /// Wrapped in catch_unwind to prevent silent crashes.
 #[tauri::command]
 pub fn set_fan_boost(active: bool) -> CoolBoostResult {
-    match std::panic::catch_unwind(|| {
+    super::logging::log_action_event(
+        "cool-boost",
+        "cooling",
+        "set_fan_boost",
+        "start",
+        Some(if active { "activate" } else { "deactivate" }),
+        None,
+        None,
+        None,
+        None,
+        false,
+        "Cool Boost request",
+    );
+
+    let result = match std::panic::catch_unwind(|| {
         #[cfg(target_os = "windows")]
         { fan_boost_windows(active) }
         #[cfg(target_os = "macos")]
@@ -43,7 +105,23 @@ pub fn set_fan_boost(active: bool) -> CoolBoostResult {
                 log: vec![format!("PANIC caught: {}", msg)],
             }
         }
-    }
+    };
+
+    super::logging::log_action_event(
+        "cool-boost",
+        "cooling",
+        "set_fan_boost",
+        if result.success { "done" } else { "error" },
+        Some(if active { "activate" } else { "deactivate" }),
+        None,
+        None,
+        None,
+        None,
+        false,
+        &result.log.join(" | "),
+    );
+
+    result
 }
 
 // ── Windows ──────────────────────────────────────────────────

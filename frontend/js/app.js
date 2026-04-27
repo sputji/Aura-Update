@@ -29,6 +29,7 @@ const state = {
     appUpdateInfo: null,
     appUpdateInstalling: false,
     maintenanceRuns: {},
+    turboProfiles: [],
 };
 
 /* ─── DOM cache ────────────────────────────────────────────── */
@@ -391,6 +392,13 @@ async function runCoolBoost() {
     statusText.textContent = t('cool_active');
 
     try {
+        try {
+            const providers = await invoke('get_cool_boost_providers');
+            if (providers && providers.detected) {
+                showToast((t('cool_provider_detected') || 'Provider détecté') + ': ' + providers.detected, 'success');
+            }
+        } catch (_) { /* optional */ }
+
         const result = await invoke('set_fan_boost', { active: true });
 
         // Display detailed log if available
@@ -432,6 +440,124 @@ async function runCoolBoost() {
             finishCoolBoost();
         }
     }, 1000);
+}
+
+function parseCsvList(value) {
+    if (!value) return [];
+    return String(value)
+        .split(',')
+        .map(v => v.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function renderTurboProfileOptions() {
+    const sel = $('#turboProfileSelect');
+    if (!sel) return;
+    const active = state.config?.active_turbo_profile || '';
+    const profiles = state.turboProfiles || [];
+    sel.innerHTML = profiles.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+    if (active && profiles.some(p => p.name === active)) sel.value = active;
+    else if (profiles.length) sel.value = profiles[0].name;
+}
+
+function fillTurboProfileEditor(name) {
+    const profile = (state.turboProfiles || []).find(p => p.name === name);
+    if (!profile) return;
+    $('#turboProfileName').value = profile.name;
+    $('#turboWhitelist').value = (profile.whitelist || []).join(',');
+    $('#turboBlacklist').value = (profile.blacklist || []).join(',');
+}
+
+async function loadTurboProfiles() {
+    try {
+        state.turboProfiles = await invoke('get_turbo_profiles');
+        renderTurboProfileOptions();
+        const sel = $('#turboProfileSelect');
+        if (sel && sel.value) fillTurboProfileEditor(sel.value);
+    } catch (e) {
+        console.warn('loadTurboProfiles failed', e);
+    }
+}
+
+async function saveTurboProfileFromUI() {
+    const name = ($('#turboProfileName')?.value || '').trim();
+    if (!name) {
+        showToast(t('turbo_profile_name_required') || 'Nom de profil requis', 'warning');
+        return;
+    }
+    const whitelist = parseCsvList($('#turboWhitelist')?.value || '');
+    const blacklist = parseCsvList($('#turboBlacklist')?.value || '');
+
+    try {
+        await invoke('save_turbo_profile', {
+            profile: { name, whitelist, blacklist },
+        });
+        await invoke('set_active_turbo_profile', { name });
+        await saveConfigKey('active_turbo_profile', name);
+        await loadTurboProfiles();
+        showToast(t('saved') || 'Saved', 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+async function applySelectedTurboProfile() {
+    const sel = $('#turboProfileSelect');
+    if (!sel || !sel.value) return;
+    try {
+        await invoke('set_active_turbo_profile', { name: sel.value });
+        await saveConfigKey('active_turbo_profile', sel.value);
+        state.config.active_turbo_profile = sel.value;
+        fillTurboProfileEditor(sel.value);
+        showToast((t('turbo_profile_applied') || 'Profil appliqué') + ': ' + sel.value, 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
+}
+
+function highlightBatteryMode(mode) {
+    ['eco', 'normal', 'extreme'].forEach(m => {
+        const b = $(`[data-battery-mode="${m}"]`);
+        if (b) b.classList.toggle('active', m === mode);
+    });
+}
+
+async function refreshBatteryMode() {
+    const card = $('#batteryModeCard');
+    const status = $('#batteryModeStatus');
+    if (!card || !status) return;
+    try {
+        const info = await invoke('get_battery_mode_status');
+        if (!info.is_laptop) {
+            card.classList.add('hidden');
+            return;
+        }
+        card.classList.remove('hidden');
+        const pct = info.battery_percent == null ? '--' : `${info.battery_percent}%`;
+        const charging = info.battery_charging ? '⚡' : '🔋';
+        status.textContent = `${charging} ${pct} — ${String(info.mode || 'normal').toUpperCase()}`;
+        highlightBatteryMode(String(info.mode || 'normal').toLowerCase());
+    } catch (e) {
+        console.warn('refreshBatteryMode failed', e);
+    }
+}
+
+async function applyBatteryMode(mode) {
+    try {
+        const info = await invoke('set_battery_mode', { mode });
+        await saveConfigKey('battery_mode', mode);
+        state.config.battery_mode = mode;
+        const status = $('#batteryModeStatus');
+        if (status) {
+            const pct = info.battery_percent == null ? '--' : `${info.battery_percent}%`;
+            const charging = info.battery_charging ? '⚡' : '🔋';
+            status.textContent = `${charging} ${pct} — ${String(info.mode || mode).toUpperCase()}`;
+        }
+        highlightBatteryMode(mode);
+        showToast((t('battery_mode_applied') || 'Mode batterie appliqué') + ': ' + mode.toUpperCase(), 'success');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
+    }
 }
 
 async function finishCoolBoost() {
@@ -2047,6 +2173,19 @@ function bindEvents() {
 
     // Turbo tab
     $('#btnTurboToggle').addEventListener('click', toggleTurboMode);
+    if ($('#turboProfileSelect')) {
+        $('#turboProfileSelect').addEventListener('change', (e) => fillTurboProfileEditor(e.target.value));
+    }
+    if ($('#btnApplyTurboProfile')) {
+        $('#btnApplyTurboProfile').addEventListener('click', applySelectedTurboProfile);
+    }
+    if ($('#btnSaveTurboProfile')) {
+        $('#btnSaveTurboProfile').addEventListener('click', saveTurboProfileFromUI);
+    }
+    ['eco', 'normal', 'extreme'].forEach(mode => {
+        const btn = $(`[data-battery-mode="${mode}"]`);
+        if (btn) btn.addEventListener('click', () => applyBatteryMode(mode));
+    });
     if ($('#btnScanBrowsers')) $('#btnScanBrowsers').addEventListener('click', scanBrowserCaches);
     if ($('#btnScanBrowserGranular')) $('#btnScanBrowserGranular').addEventListener('click', scanBrowserGranular);
     if ($('#btnCleanBrowserGranular')) $('#btnCleanBrowserGranular').addEventListener('click', cleanBrowserGranular);
@@ -2690,6 +2829,8 @@ async function init() {
         // System info badges (non-blocking — runs after main scan)
         loadSystemSpecs();
         initBackupDir();
+        loadTurboProfiles();
+        refreshBatteryMode();
         // Updater est indépendant du mode privacy IA :
         if (UPDATER_ENABLED) startupCheckAppUpdate();
 

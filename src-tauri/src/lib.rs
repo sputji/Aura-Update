@@ -232,6 +232,7 @@ pub fn run() {
             commands::health::get_system_specs,
             // ── Cooling ──────────────────────────────────────
             commands::cooling::set_fan_boost,
+            commands::cooling::get_cool_boost_providers,
             // ── Snapshot ─────────────────────────────────────
             commands::snapshot::create_snapshot,
             commands::snapshot::has_snapshot_support,
@@ -243,6 +244,12 @@ pub fn run() {
             commands::processes::get_heavy_processes,
             commands::processes::kill_process,
             commands::processes::toggle_game_mode,
+            commands::processes::get_turbo_profiles,
+            commands::processes::save_turbo_profile,
+            commands::processes::set_active_turbo_profile,
+            // ── Power / Battery ──────────────────────────────
+            commands::power::get_battery_mode_status,
+            commands::power::set_battery_mode,
             // ── AI ───────────────────────────────────────────
             commands::ai::ai_is_available,
             commands::ai::configure_ai,

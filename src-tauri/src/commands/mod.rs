@@ -8,6 +8,7 @@ pub mod cooling;
 pub mod health;
 pub mod logging;
 pub mod processes;
+pub mod power;
 pub mod remote;
 pub mod scheduler;
 pub mod snapshot;

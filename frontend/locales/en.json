@@ -248,8 +248,18 @@
     "licence_en_title": "Licence (English)",
 
     "cool_boost_log_title": "Cool Boost Log",
+    "cool_provider_detected": "Cool Boost provider detected",
     "cool_boost_powerplan_only": "Active cooling enabled: High Performance Power Plan + ACPI active policy (fans ramp up more aggressively). For direct fan control, install LibreHardwareMonitor or use MSI Center / iCUE.",
     "cool_boost_software_detected": "Fan control software detected! Open it and manually set fans to maximum. Power Plan + ACPI active policy applied additionally.",
+    "turbo_profiles_title": "Turbo Profiles",
+    "turbo_profiles_desc": "Create persistent profiles with process whitelist/blacklist.",
+    "btn_apply": "Apply",
+    "btn_save_profile": "Save profile",
+    "turbo_profile_name_required": "Profile name required",
+    "turbo_profile_applied": "Turbo profile applied",
+    "battery_modes_title": "Battery Modes",
+    "battery_mode_ready": "Detecting hardware…",
+    "battery_mode_applied": "Battery mode applied",
 
     "close_to_tray_title": "Close to Tray",
     "close_to_tray_desc": "The application stays active in the background when closed",

@@ -11,6 +11,24 @@ pub struct AppState {
     pub app_update_in_progress: Mutex<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TurboProfile {
+    pub name: String,
+    pub whitelist: Vec<String>,
+    pub blacklist: Vec<String>,
+}
+
+impl Default for TurboProfile {
+    fn default() -> Self {
+        Self {
+            name: "Jeux".into(),
+            whitelist: vec!["discord".into()],
+            blacklist: vec!["chrome".into(), "teams".into(), "spotify".into()],
+        }
+    }
+}
+
 // ── Configuration model ──────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -69,12 +87,42 @@ pub struct Config {
     /// Check Aura Update app updates on startup
     #[serde(default = "default_true")]
     pub auto_update_on_startup: bool,
+    /// Active battery mode: eco | normal | extreme
+    #[serde(default = "default_battery_mode")]
+    pub battery_mode: String,
+    /// Stored turbo profiles (whitelist/blacklist)
+    #[serde(default = "default_turbo_profiles")]
+    pub turbo_profiles: Vec<TurboProfile>,
+    /// Active turbo profile name
+    #[serde(default = "default_active_turbo_profile")]
+    pub active_turbo_profile: String,
 }
 
 fn default_true() -> bool { true }
 fn default_startup_mode() -> String { "visible".into() }
 fn default_disabled() -> String { "disabled".into() }
 fn default_ai_model() -> String { "llama3".into() }
+fn default_battery_mode() -> String { "normal".into() }
+fn default_active_turbo_profile() -> String { "Jeux".into() }
+fn default_turbo_profiles() -> Vec<TurboProfile> {
+    vec![
+        TurboProfile {
+            name: "Jeux".into(),
+            whitelist: vec!["discord".into()],
+            blacklist: vec!["chrome".into(), "teams".into(), "spotify".into(), "onedrive".into()],
+        },
+        TurboProfile {
+            name: "Live".into(),
+            whitelist: vec!["obs64".into(), "discord".into()],
+            blacklist: vec!["chrome".into(), "teams".into(), "adobe".into()],
+        },
+        TurboProfile {
+            name: "Work".into(),
+            whitelist: vec!["teams".into(), "outlook".into()],
+            blacklist: vec!["spotify".into(), "xbox".into(), "gamebar".into()],
+        },
+    ]
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -104,6 +152,9 @@ impl Default for Config {
             auto_clean_enabled: false,
             auto_clean_interval: "disabled".into(),
             auto_update_on_startup: false,
+            battery_mode: default_battery_mode(),
+            turbo_profiles: default_turbo_profiles(),
+            active_turbo_profile: default_active_turbo_profile(),
         }
     }
 }
@@ -178,6 +229,8 @@ pub fn set_config_value(
         "auto_clean_enabled" => cfg.auto_clean_enabled = value.as_bool().unwrap_or(false),
         "auto_clean_interval" => cfg.auto_clean_interval = value.as_str().unwrap_or("disabled").into(),
         "auto_update_on_startup" => cfg.auto_update_on_startup = value.as_bool().unwrap_or(true),
+        "battery_mode" => cfg.battery_mode = value.as_str().unwrap_or("normal").into(),
+        "active_turbo_profile" => cfg.active_turbo_profile = value.as_str().unwrap_or("Jeux").into(),
         _ => return Err(format!("Unknown config key: {key}")),
 
     }

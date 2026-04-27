@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# Aura Update v2.2.9 — Script Ultime de Production
+# Aura Update v2.3.0 — Script Ultime de Production
 # Build multi-OS + GitHub Release automatique
 # Déclenché : push tag v*  |  bouton manuel
 # ─────────────────────────────────────────────────────────────
@@ -215,7 +215,8 @@ jobs:
           }
 
           # Cl\u00e9s plateformes attendues par tauri-plugin-updater
-          add_platform "windows-x86_64"        "${win_nsis:-${win_msi}}"
+          # Prefer MSI for default Windows updater path (better upgrade-in-place behavior).
+          add_platform "windows-x86_64"        "${win_msi:-${win_nsis}}"
           add_platform "windows-x86_64-nsis"   "${win_nsis}"
           add_platform "windows-x86_64-msi"    "${win_msi}"
           add_platform "darwin-aarch64"        "${mac_app_tar:-${mac_dmg}}"
@@ -225,6 +226,17 @@ jobs:
 
           jq -n --arg v "${version}" --arg n "Release ${GITHUB_REF_NAME}" --arg d "${pub_date}" --argjson p "${platforms}" \
             '{version:$v, notes:$n, pub_date:$d, platforms:$p}' > dist/updater.json
+
+          # Guardrail: ensure the default Windows updater entry does not point to a spaced filename.
+          win_url=$(jq -r '.platforms["windows-x86_64"].url // ""' dist/updater.json)
+          if [[ -n "${win_url}" && "${win_url}" == *" "* ]]; then
+            echo "::error::windows-x86_64 updater URL contains spaces: ${win_url}" >&2
+            exit 1
+          fi
+          if [[ -n "${win_url}" && "${win_url}" != *.msi ]]; then
+            echo "::error::windows-x86_64 updater URL must point to MSI for in-place upgrade behavior: ${win_url}" >&2
+            exit 1
+          fi
 
           echo "=== updater.json ==="
           cat dist/updater.json

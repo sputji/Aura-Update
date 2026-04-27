@@ -2000,6 +2000,26 @@ body {
     font-size: .82rem;
 }
 
+.turbo-proc-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) auto auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+.turbo-proc-name {
+    font-weight: 600;
+}
+
+.turbo-proc-meta {
+    font-size: .82rem;
+    color: var(--text-secondary);
+}
+
 .progress-bar::after {
     content: '';
     position: absolute;

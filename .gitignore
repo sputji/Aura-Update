@@ -13,4 +13,7 @@ Crash Log User/
 # Rust / Tauri build artifacts
 src-tauri/target/
 src-tauri/gen/schemas/
+
+# Build-time transient backup
+frontend/js/app.js.bak
 _temp_release_notes.md

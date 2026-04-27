@@ -46,6 +46,22 @@ pub fn init_logging(data_dir: &Path) {
         }
         Err(e) => {
             eprintln!("[logging] Failed to open log file: {}", e);
+            // Fallback diagnostics path in temporary directory.
+            let fallback = std::env::temp_dir().join("aura_update_fallback.log");
+            match fs::OpenOptions::new().create(true).append(true).open(&fallback) {
+                Ok(file) => {
+                    *LOG_FILE.lock().unwrap() = Some(file);
+                    let msg = format!(
+                        "[logging] Fallback enabled at {} (primary path unavailable: {})",
+                        fallback.display(),
+                        log_path.display()
+                    );
+                    write_log("WARN", &msg);
+                }
+                Err(fallback_err) => {
+                    eprintln!("[logging] Failed to open fallback log file: {}", fallback_err);
+                }
+            }
         }
     }
 

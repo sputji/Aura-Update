@@ -7,6 +7,7 @@ use tokio::process::Command;
 use std::time::Duration;
 
 use super::config::AppState;
+use super::logging;
 
 // Module Updates: réactivé (mode standard avec vérification automatique).
 // Le mode confidentialité strict reste actif sur les modules IA / Remote / Telemetry.
@@ -98,6 +99,19 @@ pub fn set_tray_update_available(
 
 #[tauri::command]
 pub async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
+    logging::log_action_event(
+        "updater-check",
+        "updates",
+        "check_app_update",
+        "start",
+        Some("check"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        "Checking updater endpoint",
+    );
     if STRICT_PRIVACY_MODE {
         return Ok(AppUpdateInfo {
             available: false,
@@ -124,10 +138,36 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, St
         };
         let _ = refresh_tray_menu(&app, info.version.as_deref());
         let _ = app.emit("app-update-available", &info);
+        logging::log_action_event(
+            "updater-check",
+            "updates",
+            "check_app_update",
+            "done",
+            Some("available"),
+            None,
+            None,
+            None,
+            None,
+            false,
+            &format!("Update available: {}", info.version.clone().unwrap_or_default()),
+        );
         return Ok(info);
     }
 
     let _ = refresh_tray_menu(&app, None);
+    logging::log_action_event(
+        "updater-check",
+        "updates",
+        "check_app_update",
+        "done",
+        Some("none"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        "No update available",
+    );
     Ok(AppUpdateInfo {
         available: false,
         current_version,
@@ -141,6 +181,19 @@ pub async fn install_app_update(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
+    logging::log_action_event(
+        "updater-install",
+        "updates",
+        "install_app_update",
+        "start",
+        Some("install"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        "Starting updater install",
+    );
     if STRICT_PRIVACY_MODE {
         return Err("Mode confidentialité stricte: installation réseau désactivée".into());
     }
@@ -222,7 +275,34 @@ pub async fn install_app_update(
     *state.app_update_in_progress.lock().unwrap() = false;
 
     if result.is_ok() {
+        logging::log_action_event(
+            "updater-install",
+            "updates",
+            "install_app_update",
+            "done",
+            Some("restart"),
+            None,
+            None,
+            None,
+            None,
+            false,
+            "Updater install finished; app restart requested",
+        );
         app.restart();
+    } else if let Err(e) = &result {
+        logging::log_action_event(
+            "updater-install",
+            "updates",
+            "install_app_update",
+            "error",
+            Some("failed"),
+            None,
+            None,
+            None,
+            None,
+            false,
+            e,
+        );
     }
 
     result
@@ -231,6 +311,19 @@ pub async fn install_app_update(
 // ── Main command ─────────────────────────────────────────────────────
 #[tauri::command]
 pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
+    logging::log_action_event(
+        "updates-scan",
+        "updates",
+        "check_updates",
+        "start",
+        Some("scan"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        "Scanning updates across package managers",
+    );
     if STRICT_PRIVACY_MODE {
         return Ok(Vec::new());
     }
@@ -293,6 +386,19 @@ pub async fn check_updates() -> Result<Vec<UpdatePackage>, String> {
         all.extend(mas);
     }
 
+    logging::log_action_event(
+        "updates-scan",
+        "updates",
+        "check_updates",
+        "done",
+        Some("scan"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        &format!("Found {} update(s)", all.len()),
+    );
     Ok(all)
 }
 
@@ -301,6 +407,19 @@ pub async fn install_update(
     app: tauri::AppHandle,
     pkg: UpdatePackage,
 ) -> Result<bool, String> {
+    logging::log_action_event(
+        &format!("pkg-{}", pkg.id),
+        "updates",
+        "install_update",
+        "start",
+        Some("package"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        &format!("Installing {} via {}", pkg.name, pkg.manager),
+    );
     if STRICT_PRIVACY_MODE {
         return Err("Mode confidentialité stricte: installation réseau désactivée".into());
     }
@@ -325,6 +444,35 @@ pub async fn install_update(
             })).ok();
         }
     }
+    if result.is_ok() {
+        logging::log_action_event(
+            &format!("pkg-{}", pkg.id),
+            "updates",
+            "install_update",
+            "done",
+            Some("package"),
+            None,
+            None,
+            None,
+            None,
+            false,
+            &format!("Installed {}", pkg.name),
+        );
+    } else if let Err(e) = &result {
+        logging::log_action_event(
+            &format!("pkg-{}", pkg.id),
+            "updates",
+            "install_update",
+            "error",
+            Some("package"),
+            None,
+            None,
+            None,
+            None,
+            false,
+            e,
+        );
+    }
     result.map(|_| true)
 }
 
@@ -333,7 +481,7 @@ async fn install_impl(pkg: &UpdatePackage) -> Result<(), String> {
     let output = match pkg.manager.as_str() {
         "winget" => {
             let mut c = Command::new("cmd");
-            c.args(["/c", &format!("chcp 65001 > nul && winget upgrade --id {} --silent --accept-package-agreements --accept-source-agreements", pkg.id.strip_prefix("winget-").unwrap_or(&pkg.id))]);
+            c.args(["/c", &format!("chcp 65001 > nul && winget upgrade --id {} --silent --force --accept-package-agreements --accept-source-agreements", pkg.id.strip_prefix("winget-").unwrap_or(&pkg.id))]);
             #[cfg(windows)]
             c.creation_flags(0x0800_0000);
             c.output().await

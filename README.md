@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.9** — Dernière version stable
+> **v2.3.0** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -88,6 +88,14 @@ Ultra-léger (~8-12 MB), il offre des performances natives sur chaque plateforme
 
 ---
 
+## ⚠️ Known Limitations Matérielles
+
+- Le contrôle direct des ventilateurs dépend du constructeur, du BIOS/EC et du driver.
+- Sur certains PC, Cool Boost applique uniquement la politique énergétique/refroidissement OS (sans forçage manuel des ventilateurs).
+- Le message UI différencie désormais clairement : contrôle ventilateur direct vs optimisation énergétique uniquement.
+
+---
+
 ## 🎨 Interface
 
 - **Glassmorphism** : Cartes translucides avec blur et saturation
@@ -131,7 +139,23 @@ Toute redistribution non autorisée est interdite.
 
 ---
 
-## 📋 Changelog v2.2.8
+## 📋 Changelog v2.2.9
+
+## 📋 Changelog v2.3.0
+
+### ✅ Correctifs critiques
+- Fix update path (upgrade in place sur installation existante) avec préférence MSI pour la clé updater Windows par défaut.
+- Fix scan updates privacy regression : le bouton Analyser fonctionne à nouveau en mode privacy IA/télémétrie.
+- Fix logs persistence and flush : fallback diagnostic ajouté si le dossier principal n'est pas accessible.
+- Fix DISM/SFC output streaming in UI : capture stdout/stderr drainée proprement et message explicite en cas de sortie vide.
+
+### 🎨 UX & organisation
+- UI rearrangement (Nettoyage/Maintenance/Turbo) : Caches Navigateurs + Analyse Prédictive déplacés vers Nettoyage ; Sauvegardes système + Bloatwares vers Maintenance.
+- Turbo profiles revamped with interactive process checklist : liste des processus lourds avec cases Garder/Fermer et presets Jeu/Streaming/Travail.
+
+### ❄️ Cooling & updates apps
+- Cool Boost reliability improved (NVIDIA/AMD capability-based) avec message honnête si seul le fallback énergétique est possible.
+- Winget error handling hardened : ajout de --force et exécution robuste sans bloquer l'ensemble du flux de maintenance.
 
 ## 📋 Changelog v2.2.9
 

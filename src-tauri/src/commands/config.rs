@@ -163,10 +163,21 @@ impl Default for Config {
 pub fn get_portable_dir() -> PathBuf {
     let exe = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe.parent().unwrap_or_else(|| std::path::Path::new("."));
-    let data_dir = exe_dir.join("aura_data");
-    fs::create_dir_all(&data_dir).ok();
-    fs::create_dir_all(data_dir.join("cache")).ok();
-    data_dir
+    let portable_dir = exe_dir.join("aura_data");
+
+    if fs::create_dir_all(&portable_dir).is_ok() && fs::create_dir_all(portable_dir.join("cache")).is_ok() {
+        return portable_dir;
+    }
+
+    // Fallback when install directory is not writable.
+    let fallback_base = std::env::var("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::current_dir())
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let fallback_dir = fallback_base.join("Aura.Update").join("aura_data");
+    let _ = fs::create_dir_all(&fallback_dir);
+    let _ = fs::create_dir_all(fallback_dir.join("cache"));
+    fallback_dir
 }
 
 pub fn load_config(data_dir: &PathBuf) -> Config {

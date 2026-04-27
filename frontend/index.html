@@ -342,11 +342,18 @@
                     <div class="turbo-card mini">
                         <span>🎛️</span>
                         <h3 data-i18n="turbo_profiles_title">Profils Turbo</h3>
-                        <p data-i18n="turbo_profiles_desc">Créez des profils persistants avec whitelist et blacklist de processus.</p>
+                        <p data-i18n="turbo_profiles_desc">Créez des profils persistants (whitelist/blacklist) avec sélection visuelle.</p>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
                             <select id="turboProfileSelect" class="input-field" style="min-width:180px;"></select>
                             <button id="btnApplyTurboProfile" class="btn btn-sm btn-primary" data-i18n="btn_apply">Appliquer</button>
+                            <button id="btnTurboLoadProcesses" class="btn btn-sm btn-secondary" data-i18n="btn_load_procs">Analyser les processus</button>
                         </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                            <button id="btnPresetGame" class="btn btn-sm btn-secondary">Jeu</button>
+                            <button id="btnPresetStream" class="btn btn-sm btn-secondary">Streaming</button>
+                            <button id="btnPresetWork" class="btn btn-sm btn-secondary">Travail</button>
+                        </div>
+                        <div id="turboProcessMatrix" class="cleanup-list" style="margin-top:8px;"></div>
                         <input id="turboProfileName" class="input-field" placeholder="Jeux" style="margin-top:8px;" />
                         <textarea id="turboWhitelist" class="input-field" rows="2" placeholder="discord,obs64"></textarea>
                         <textarea id="turboBlacklist" class="input-field" rows="2" placeholder="chrome,teams,spotify"></textarea>

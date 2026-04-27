@@ -84,6 +84,8 @@ pub async fn maintenance_update_apps(app: tauri::AppHandle) -> Result<String, St
                 args: vec![
                     "upgrade".to_string(),
                     "--all".to_string(),
+                    "--force".to_string(),
+                    "--include-unknown".to_string(),
                     "--accept-package-agreements".to_string(),
                     "--accept-source-agreements".to_string(),
                 ],

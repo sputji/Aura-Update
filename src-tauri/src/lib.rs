@@ -59,8 +59,11 @@ pub fn run() {
 
             // Set window icon from embedded icon.png
             if let Some(window) = app.get_webview_window("main") {
-                let png_data = include_bytes!("../../frontend/icons/icon.png");
-                if let Ok(img) = image::load_from_memory(png_data) {
+                #[cfg(windows)]
+                let icon_data = include_bytes!("../icons/icon.ico");
+                #[cfg(not(windows))]
+                let icon_data = include_bytes!("../../frontend/icons/icon.png");
+                if let Ok(img) = image::load_from_memory(icon_data) {
                     let rgba = img.to_rgba8();
                     let (w, h) = rgba.dimensions();
                     let icon = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
@@ -69,8 +72,11 @@ pub fn run() {
             }
 
             // System tray icon — left-click show/focus, right-click context menu
-            let png_data = include_bytes!("../../frontend/icons/icon.png");
-            if let Ok(img) = image::load_from_memory(png_data) {
+            #[cfg(windows)]
+            let tray_data = include_bytes!("../icons/icon.ico");
+            #[cfg(not(windows))]
+            let tray_data = include_bytes!("../../frontend/icons/icon.png");
+            if let Ok(img) = image::load_from_memory(tray_data) {
                 let rgba = img.to_rgba8();
                 let (w, h) = rgba.dimensions();
                 let tray_icon = tauri::image::Image::new_owned(rgba.into_raw(), w, h);

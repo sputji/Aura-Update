@@ -94,6 +94,17 @@ fn cap_line(v: &str) -> String {
     }
 }
 
+fn append_output_line(combined: &mut String, stream: &str, line: &str) {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if !combined.is_empty() {
+        combined.push('\n');
+    }
+    combined.push_str(&format!("[{stream}] {trimmed}"));
+}
+
 pub async fn run_logged_command(
     app: &tauri::AppHandle,
     spec: RunSpec,
@@ -206,10 +217,7 @@ pub async fn run_logged_command(
         tokio::select! {
             Some((stream, line)) = rx.recv() => {
                 let line = cap_line(&line);
-                if !combined.is_empty() {
-                    combined.push('\n');
-                }
-                combined.push_str(&format!("[{stream}] {line}"));
+                append_output_line(&mut combined, &stream, &line);
                 let elapsed = started.elapsed().as_millis();
                 emit_event(app, &spec.task, "progress", &line, spec.start_percent, &run_id, false, elapsed);
                 logging::log_action_event(
@@ -251,6 +259,12 @@ pub async fn run_logged_command(
         }
     }
 
+    // Drain any remaining buffered lines after process exit.
+    while let Ok((stream, line)) = rx.try_recv() {
+        let line = cap_line(&line);
+        append_output_line(&mut combined, &stream, &line);
+    }
+
     let duration = started.elapsed().as_millis();
     let exit_code = status.and_then(|s| s.code());
     let success = !canceled && !timed_out && exit_code.unwrap_or(-1) == 0;
@@ -271,7 +285,7 @@ pub async fn run_logged_command(
         format!("Délai dépassé après {}s", spec.timeout_secs)
     } else if success {
         if combined.trim().is_empty() {
-            "Opération terminée avec succès.".to_string()
+            format!("{} terminé avec succès (run_id: {})", spec.step, run_id)
         } else {
             combined.clone()
         }

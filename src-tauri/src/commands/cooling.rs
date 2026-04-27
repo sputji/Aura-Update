@@ -496,13 +496,34 @@ Write-Output "CPU:$cpuTemp|GPU:$gpuTemp"
         }
     }
 
+    if active {
+        let amd_diag = r#"
+try {
+  $amd = Get-CimInstance Win32_VideoController -ErrorAction Stop | Where-Object { $_.Name -match 'AMD|Radeon' }
+  if ($amd) { Write-Output "AMD:DETECTED" } else { Write-Output "AMD:NONE" }
+} catch { Write-Output "AMD:UNKNOWN" }
+"#;
+        let amd_result = Command::new("powershell")
+            .args(["-NoProfile", "-Command", amd_diag])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(o) = amd_result {
+            let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if out == "AMD:DETECTED" {
+                log.push("[AMD GPU] Detected: direct fan control depends on vendor driver/API (ADLX/Adrenalin)".into());
+            }
+        }
+    }
+
+    let nvidia_manual_fan = log.iter().any(|l| l.contains("[NVIDIA GPU]") && l.contains("fans=100%"));
+    let hardware_manual = log.iter().any(|l| l.contains("Fan control: OK") || l.contains("[MSI] OK") || l.contains("[ASUS/ROG] OK") || l.contains("[Dell/Alienware] OK") || l.contains("[Acer/NitroSense] OK") || l.contains("[Corsair/iCUE] OK") || l.contains("[Gigabyte/Aorus] OK"));
+    let direct_control_ok = vendor_success || nvidia_manual_fan || hardware_manual;
+
     let message = if active {
-        // All methods applied — report success always
-        // Power Plan + Cooling Policy are always applied, so boost IS active
-        if vendor_success {
+        if direct_control_ok {
             "cool_boost_started".into()
         } else {
-            "cool_boost_started".into()
+            "cool_boost_powerplan_only".into()
         }
     } else {
         "cool_boost_finished".into()

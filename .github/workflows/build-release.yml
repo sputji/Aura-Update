@@ -95,6 +95,7 @@ jobs:
           retention-days: 5
           path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/universal-apple-darwin/release/bundle/**/*.sig
             src-tauri/target/universal-apple-darwin/release/bundle/**/latest*.json
 
@@ -239,6 +240,7 @@ jobs:
             dist/**/*.exe
             dist/**/*.msi
             dist/**/*.dmg
+            dist/**/*.tar.gz
             dist/**/*.deb
             dist/**/*.rpm
             dist/**/*.AppImage

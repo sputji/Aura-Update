@@ -18,12 +18,11 @@ pub struct CoolBoostProviders {
 
 #[tauri::command]
 pub fn get_cool_boost_providers() -> CoolBoostProviders {
-    let mut detected = "generic".to_string();
-
     #[cfg(windows)]
-    {
+    let detected = {
         use std::os::windows::process::CommandExt;
         use std::process::Command;
+        let mut detected = "generic".to_string();
         if let Ok(o) = Command::new("powershell")
             .args(["-NoProfile", "-Command", "(Get-CimInstance Win32_BaseBoard).Manufacturer"])
             .creation_flags(0x0800_0000)
@@ -39,7 +38,11 @@ pub fn get_cool_boost_providers() -> CoolBoostProviders {
             else if vendor.contains("corsair") { detected = "corsair".into(); }
             else if vendor.contains("gigabyte") || vendor.contains("aorus") { detected = "gigabyte".into(); }
         }
-    }
+        detected
+    };
+
+    #[cfg(not(windows))]
+    let detected = "generic".to_string();
 
     CoolBoostProviders {
         detected,

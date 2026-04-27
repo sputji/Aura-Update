@@ -173,10 +173,22 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          # Helper: lit signature .sig si pr\u00e9sente, sinon cha\u00eene vide
+          # Normalize filenames so updater URLs match GitHub release assets exactly.
+          while IFS= read -r -d '' file; do
+            normalized="${file// /.}"
+            if [ "${file}" != "${normalized}" ]; then
+              mv "${file}" "${normalized}"
+            fi
+          done < <(find dist -type f -name "* *" -print0)
+
+          # Helper: signature required for updater integrity.
           read_sig() {
             local sig_file="$1"
-            [ -f "${sig_file}" ] && cat "${sig_file}" || echo ""
+            if [ ! -f "${sig_file}" ]; then
+              echo "::error::Missing signature file: ${sig_file}" >&2
+              return 1
+            fi
+            cat "${sig_file}"
           }
 
           # D\u00e9tection des artefacts par plateforme
@@ -194,7 +206,8 @@ jobs:
             local key="$1" file="$2"
             [ -z "${file}" ] && return 0
             local fname=$(basename "${file}")
-            local sig=$(read_sig "${file}.sig")
+            local sig
+            sig=$(read_sig "${file}.sig") || exit 1
             local url="https://github.com/sputji/Aura-Update/releases/download/${GITHUB_REF_NAME}/${fname}"
             platforms=$(jq --arg k "${key}" --arg s "${sig}" --arg u "${url}" \
               '. + {($k): {signature: $s, url: $u}}' <<< "${platforms}")

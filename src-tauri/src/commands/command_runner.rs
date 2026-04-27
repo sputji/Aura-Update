@@ -315,6 +315,14 @@ pub async fn run_logged_command(
         timed_out,
     };
 
+    println!(
+        "[command_runner] action={} success={} canceled={} timed_out={}",
+        result.run_id,
+        result.success,
+        result.canceled,
+        result.timed_out
+    );
+
     if result.success {
         Ok(result)
     } else if result.canceled {

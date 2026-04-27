@@ -162,6 +162,8 @@ Toute redistribution non autorisée est interdite.
 - 🔖 **Version alignée** dans `Cargo.toml`, `package.json`, `tauri.conf.json`.
 - 🔄 **Updater actif** dans la config Tauri avec endpoint release + clé publique valide.
 - 🧱 **Workflow release conservé** avec `updater.json` dynamique et clés plateformes Windows (`windows-x86_64`, `windows-x86_64-nsis`, `windows-x86_64-msi`).
+- 🔗 **Fix 404 updater** — Noms d'assets normalisés avant génération de `updater.json` (espaces → points) pour garantir une correspondance exacte entre URL updater et assets GitHub Release.
+- 🔐 **Signatures obligatoires** — Le workflow échoue explicitement si un artefact de mise à jour n'a pas son fichier `.sig` associé.
 
 ---
 

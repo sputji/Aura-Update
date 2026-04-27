@@ -461,6 +461,7 @@ async fn install_windows_update_in_place(
 
 #[cfg(windows)]
 fn preferred_install_dir(state: &tauri::State<'_, AppState>) -> Result<PathBuf, String> {
+    // 1️⃣ Si l'utilisateur a configuré un répertoire personnalisé, l'utiliser
     let configured = {
         let cfg = state.config.lock().unwrap();
         cfg.update_install_dir.trim().to_string()
@@ -469,14 +470,45 @@ fn preferred_install_dir(state: &tauri::State<'_, AppState>) -> Result<PathBuf, 
     if !configured.is_empty() {
         let p = PathBuf::from(configured);
         if std::fs::create_dir_all(&p).is_ok() {
+            logging::log_action_event(
+                "updater-install",
+                "updates",
+                "preferred_install_dir",
+                "configured",
+                Some("custom-dir"),
+                None,
+                None,
+                None,
+                None,
+                false,
+                &format!("Using configured directory: {}", p.display()),
+            );
             return Ok(p);
         }
     }
 
+    // 2️⃣ PAR DÉFAUT: Utiliser le répertoire courant de l'exécutable (in-place update)
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    exe.parent()
+    let exe_dir = exe
+        .parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| "Impossible de déterminer le dossier d'installation courant".to_string())
+        .ok_or_else(|| "Impossible de déterminer le dossier d'installation courant".to_string())?;
+
+    logging::log_action_event(
+        "updater-install",
+        "updates",
+        "preferred_install_dir",
+        "default",
+        Some("exe-dir"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        &format!("Using default exe directory (in-place): {}", exe_dir.display()),
+    );
+
+    Ok(exe_dir)
 }
 
 #[cfg(windows)]

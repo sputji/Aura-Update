@@ -517,17 +517,28 @@ try {
 
     let nvidia_manual_fan = log.iter().any(|l| l.contains("[NVIDIA GPU]") && l.contains("fans=100%"));
     let hardware_manual = log.iter().any(|l| l.contains("Fan control: OK") || l.contains("[MSI] OK") || l.contains("[ASUS/ROG] OK") || l.contains("[Dell/Alienware] OK") || l.contains("[Acer/NitroSense] OK") || l.contains("[Corsair/iCUE] OK") || l.contains("[Gigabyte/Aorus] OK"));
+    let fan_software_detected = log.iter().any(|l| {
+        l.contains("[Fan Software]")
+            && (l.contains("MSI Center") || l.contains("iCUE") || l.contains("Armoury Crate") || l.contains("Alienware Command Center") || l.contains("NitroSense") || l.contains("Aorus Engine"))
+    });
     let direct_control_ok = vendor_success || nvidia_manual_fan || hardware_manual;
 
     let message = if active {
         if direct_control_ok {
             "cool_boost_started".into()
+        } else if fan_software_detected {
+            "cool_boost_software_detected".into()
         } else {
             "cool_boost_powerplan_only".into()
         }
     } else {
         "cool_boost_finished".into()
     };
+
+    let log: Vec<String> = log
+        .into_iter()
+        .filter(|line| !line.contains("SKIP: Not available"))
+        .collect();
 
     CoolBoostResult {
         success: true,

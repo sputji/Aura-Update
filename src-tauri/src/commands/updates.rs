@@ -5,6 +5,8 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::process::Command;
 #[cfg(windows)]
 use std::time::Duration;
+#[cfg(windows)]
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
 use super::config::AppState;
 use super::logging;
@@ -12,6 +14,21 @@ use super::logging;
 // Module Updates: réactivé (mode standard avec vérification automatique).
 // Le mode confidentialité strict reste actif sur les modules IA / Remote / Telemetry.
 const STRICT_PRIVACY_MODE: bool = false;
+
+#[cfg(windows)]
+const UPDATER_ENDPOINT: &str = "https://github.com/sputji/Aura-Update/releases/latest/download/updater.json";
+
+#[cfg(windows)]
+#[derive(Debug, Deserialize)]
+struct UpdaterManifest {
+    platforms: HashMap<String, UpdaterPlatform>,
+}
+
+#[cfg(windows)]
+#[derive(Debug, Deserialize)]
+struct UpdaterPlatform {
+    url: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePackage {
@@ -214,6 +231,39 @@ pub async fn install_app_update(
             .await
             .map_err(|e| e.to_string())?;
 
+        #[cfg(windows)]
+        {
+            if update.is_none() {
+                let _ = app.emit("app-update-progress", AppUpdateProgress {
+                    phase: "none".to_string(),
+                    downloaded: 0,
+                    total: 0,
+                    percent: 0,
+                });
+                return Err("Aucune nouvelle version disponible".into());
+            }
+
+            let _ = app.emit("app-update-progress", AppUpdateProgress {
+                phase: "starting".to_string(),
+                downloaded: 0,
+                total: 0,
+                percent: 0,
+            });
+
+            install_windows_update_in_place(&app, &state).await?;
+
+            let _ = app.emit("app-update-progress", AppUpdateProgress {
+                phase: "done".to_string(),
+                downloaded: 0,
+                total: 0,
+                percent: 100,
+            });
+
+            let _ = refresh_tray_menu(&app, None);
+            return Ok::<bool, String>(true);
+        }
+
+        #[cfg(not(windows))]
         let Some(update) = update else {
             let _ = app.emit("app-update-progress", AppUpdateProgress {
                 phase: "none".to_string(),
@@ -224,6 +274,7 @@ pub async fn install_app_update(
             return Err("Aucune nouvelle version disponible".into());
         };
 
+        #[cfg(not(windows))]
         let _ = app.emit("app-update-progress", AppUpdateProgress {
             phase: "starting".to_string(),
             downloaded: 0,
@@ -231,6 +282,7 @@ pub async fn install_app_update(
             percent: 0,
         });
 
+        #[cfg(not(windows))]
         update
             .download_and_install(
                 |chunk_length, content_length| {
@@ -260,15 +312,21 @@ pub async fn install_app_update(
             .await
             .map_err(|e| e.to_string())?;
 
-        let _ = app.emit("app-update-progress", AppUpdateProgress {
-            phase: "done".to_string(),
-            downloaded: 0,
-            total: 0,
-            percent: 100,
-        });
+        #[cfg(not(windows))]
+        {
+            let _ = app.emit("app-update-progress", AppUpdateProgress {
+                phase: "done".to_string(),
+                downloaded: 0,
+                total: 0,
+                percent: 100,
+            });
 
-        let _ = refresh_tray_menu(&app, None);
-        Ok::<bool, String>(true)
+            let _ = refresh_tray_menu(&app, None);
+            return Ok::<bool, String>(true);
+        }
+
+        #[cfg(windows)]
+        unreachable!("Windows flow returns earlier");
     }
     .await;
 
@@ -306,6 +364,171 @@ pub async fn install_app_update(
     }
 
     result
+}
+
+#[cfg(windows)]
+async fn install_windows_update_in_place(
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let install_dir = preferred_install_dir(state)?;
+    let manifest = fetch_updater_manifest().await?;
+
+    let asset_url = manifest
+        .platforms
+        .get("windows-x86_64")
+        .or_else(|| manifest.platforms.get("windows-x86_64-msi"))
+        .or_else(|| manifest.platforms.get("windows-x86_64-nsis"))
+        .map(|p| p.url.clone())
+        .ok_or_else(|| "Aucun payload Windows trouvé dans updater.json".to_string())?;
+
+    logging::log_action_event(
+        "updater-install",
+        "updates",
+        "install_app_update",
+        "progress",
+        Some("download-installer"),
+        None,
+        None,
+        None,
+        None,
+        false,
+        &format!("Installer URL: {asset_url}"),
+    );
+
+    let payload = reqwest::get(&asset_url)
+        .await
+        .map_err(|e| format!("Téléchargement impossible: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("Lecture payload impossible: {e}"))?;
+
+    let installer = extract_windows_installer_from_payload(&asset_url, &payload)?;
+
+    let install_dir_str = install_dir.to_string_lossy().to_string();
+    let mut cmd = if installer
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("msi"))
+    {
+        let mut c = Command::new("msiexec");
+        c.args([
+            "/i",
+            installer
+                .to_str()
+                .ok_or_else(|| "Chemin MSI invalide".to_string())?,
+            "/qn",
+            "/norestart",
+            &format!("TARGETDIR={install_dir_str}"),
+        ]);
+        c
+    } else {
+        let mut c = Command::new(
+            installer
+                .to_str()
+                .ok_or_else(|| "Chemin EXE invalide".to_string())?,
+        );
+        c.args(["/S", &format!("/D={install_dir_str}")]);
+        c
+    };
+
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000);
+
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("Installation impossible: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("Installateur terminé avec code {:?}", output.status.code())
+        } else {
+            stderr
+        });
+    }
+
+    let _ = app.emit("app-update-progress", AppUpdateProgress {
+        phase: "installing".to_string(),
+        downloaded: 0,
+        total: 0,
+        percent: 100,
+    });
+
+    Ok(())
+}
+
+#[cfg(windows)]
+fn preferred_install_dir(state: &tauri::State<'_, AppState>) -> Result<PathBuf, String> {
+    let configured = {
+        let cfg = state.config.lock().unwrap();
+        cfg.update_install_dir.trim().to_string()
+    };
+
+    if !configured.is_empty() {
+        let p = PathBuf::from(configured);
+        if std::fs::create_dir_all(&p).is_ok() {
+            return Ok(p);
+        }
+    }
+
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    exe.parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "Impossible de déterminer le dossier d'installation courant".to_string())
+}
+
+#[cfg(windows)]
+async fn fetch_updater_manifest() -> Result<UpdaterManifest, String> {
+    reqwest::get(UPDATER_ENDPOINT)
+        .await
+        .map_err(|e| format!("Impossible de lire updater.json: {e}"))?
+        .json::<UpdaterManifest>()
+        .await
+        .map_err(|e| format!("updater.json invalide: {e}"))
+}
+
+#[cfg(windows)]
+fn extract_windows_installer_from_payload(url: &str, payload: &[u8]) -> Result<PathBuf, String> {
+    let tmp = std::env::temp_dir().join("aura-update-updater");
+    let _ = std::fs::create_dir_all(&tmp);
+
+    if url.ends_with(".zip") {
+        let zip_path = tmp.join("aura-update-installer.zip");
+        std::fs::write(&zip_path, payload).map_err(|e| e.to_string())?;
+
+        let extract_dir = tmp.join("extract");
+        let _ = std::fs::remove_dir_all(&extract_dir);
+        let _ = std::fs::create_dir_all(&extract_dir);
+
+        let ps = format!(
+            "$zip='{}';$dst='{}';Expand-Archive -Path $zip -DestinationPath $dst -Force;Get-ChildItem -Path $dst -Recurse -File | Where-Object {{ $_.Extension -in '.msi','.exe' }} | Select-Object -First 1 -ExpandProperty FullName",
+            zip_path.display(),
+            extract_dir.display()
+        );
+
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &ps])
+            .output()
+            .map_err(|e| format!("Extraction ZIP impossible: {e}"))?;
+
+        if !out.status.success() {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        }
+
+        let installer_path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if installer_path.is_empty() {
+            return Err("Archive updater.zip sans .msi/.exe".to_string());
+        }
+        return Ok(PathBuf::from(installer_path));
+    }
+
+    let lower = url.to_lowercase();
+    let ext = if lower.ends_with(".msi") { "msi" } else { "exe" };
+    let out = tmp.join(format!("aura-update-installer.{ext}"));
+    std::fs::write(&out, payload).map_err(|e| e.to_string())?;
+    Ok(out)
 }
 
 // ── Main command ─────────────────────────────────────────────────────

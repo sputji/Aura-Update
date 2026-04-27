@@ -87,6 +87,9 @@ pub struct Config {
     /// Check Aura Update app updates on startup
     #[serde(default = "default_true")]
     pub auto_update_on_startup: bool,
+    /// Preferred install directory for app auto-updates (Windows)
+    #[serde(default)]
+    pub update_install_dir: String,
     /// Active battery mode: eco | normal | extreme
     #[serde(default = "default_battery_mode")]
     pub battery_mode: String,
@@ -152,6 +155,7 @@ impl Default for Config {
             auto_clean_enabled: false,
             auto_clean_interval: "disabled".into(),
             auto_update_on_startup: false,
+            update_install_dir: String::new(),
             battery_mode: default_battery_mode(),
             turbo_profiles: default_turbo_profiles(),
             active_turbo_profile: default_active_turbo_profile(),
@@ -240,6 +244,7 @@ pub fn set_config_value(
         "auto_clean_enabled" => cfg.auto_clean_enabled = value.as_bool().unwrap_or(false),
         "auto_clean_interval" => cfg.auto_clean_interval = value.as_str().unwrap_or("disabled").into(),
         "auto_update_on_startup" => cfg.auto_update_on_startup = value.as_bool().unwrap_or(true),
+        "update_install_dir" => cfg.update_install_dir = value.as_str().unwrap_or("").into(),
         "battery_mode" => cfg.battery_mode = value.as_str().unwrap_or("normal").into(),
         "active_turbo_profile" => cfg.active_turbo_profile = value.as_str().unwrap_or("Jeux").into(),
         _ => return Err(format!("Unknown config key: {key}")),

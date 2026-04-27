@@ -343,6 +343,7 @@
                         <span>🎛️</span>
                         <h3 data-i18n="turbo_profiles_title">Profils Turbo</h3>
                         <p data-i18n="turbo_profiles_desc">Créez des profils persistants (whitelist/blacklist) avec sélection visuelle.</p>
+                        <p class="setting-desc" data-i18n="turbo_profiles_hint">Règle simple: cochez "Garder" pour conserver l'app en Turbo, cochez "Fermer" pour la stopper pendant le boost.</p>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
                             <select id="turboProfileSelect" class="input-field" style="min-width:180px;"></select>
                             <button id="btnApplyTurboProfile" class="btn btn-sm btn-primary" data-i18n="btn_apply">Appliquer</button>
@@ -353,6 +354,11 @@
                             <button id="btnPresetStream" class="btn btn-sm btn-secondary">Streaming</button>
                             <button id="btnPresetWork" class="btn btn-sm btn-secondary">Travail</button>
                         </div>
+                        <div class="turbo-legend" aria-hidden="true">
+                            <span class="turbo-pill keep" data-i18n="turbo_legend_keep">Garder = reste ouvert</span>
+                            <span class="turbo-pill close" data-i18n="turbo_legend_close">Fermer = sera stoppé</span>
+                        </div>
+                        <p id="turboProfileSummary" class="turbo-profile-summary" data-i18n="turbo_profile_summary_empty">Analysez les processus pour afficher un résumé clair du profil.</p>
                         <div id="turboProcessMatrix" class="cleanup-list" style="margin-top:8px;"></div>
                         <input id="turboProfileName" class="input-field" placeholder="Jeux" style="margin-top:8px;" />
                         <textarea id="turboWhitelist" class="input-field" rows="2" placeholder="discord,obs64"></textarea>
@@ -559,6 +565,15 @@
                     <div class="setting-row">
                         <label class="toggle"><input type="checkbox" id="autoUpdateToggle" aria-label="Auto update startup"><span class="toggle-slider"></span></label>
                         <span id="autoUpdateStatus" data-i18n="enabled">Activé</span>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label for="btnChooseUpdateInstallDir" data-i18n="settings_update_install_dir">Dossier d'installation des mises à jour</label>
+                    <p class="setting-desc" data-i18n="settings_update_install_dir_desc">Par défaut, Aura Update réinstalle au même endroit que l'application actuelle.</p>
+                    <div class="setting-row backup-dir-row">
+                        <span id="updateInstallDirPath" class="backup-dir-path" data-i18n="settings_update_install_dir_auto">Automatique (dossier actuel de l'app)</span>
+                        <button id="btnChooseUpdateInstallDir" class="btn btn-sm btn-secondary">📂 <span data-i18n="btn_choose_folder">Choisir</span></button>
+                        <button id="btnResetUpdateInstallDir" class="btn btn-sm btn-neutral hidden">✕</button>
                     </div>
                 </div>
                 <!-- Snapshot -->

@@ -1,6 +1,6 @@
 [package]
 name = "aura-update"
-version = "2.2.8"
+version = "2.2.9"
 description = "Aura Update — Health Center"
 authors = ["Aura Néo <contact@auraneo.fr>"]
 license = "Proprietary"

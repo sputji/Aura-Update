@@ -121,6 +121,8 @@ fn get_disk_free_gb() -> u64 {
 pub async fn run_autopilot(app: tauri::AppHandle) -> Result<HealthScore, String> {
     use tauri::Emitter;
 
+    super::logging::log_info("AutoPilot: start sequence cleanup -> updates -> health");
+
     app.emit("autopilot-progress", serde_json::json!({
         "step": "snapshot", "message": "Creating safety snapshot…"
     })).ok();
@@ -128,7 +130,29 @@ pub async fn run_autopilot(app: tauri::AppHandle) -> Result<HealthScore, String>
     // 1. Snapshot (best-effort)
     let _ = super::snapshot::create_snapshot("Aura Auto-Pilot".into()).await;
 
-    // 2. Updates
+    // 2. Cleanup first (offline-first and local-safe)
+    app.emit("autopilot-progress", serde_json::json!({
+        "step": "cleanup", "message": "Cleaning temporary files…"
+    })).ok();
+    let report = super::cleanup::scan_cleanup().await.unwrap_or(
+        super::cleanup::CleanupReport { items: vec![], total_bytes: 0 }
+    );
+    let paths: Vec<String> = report.items.iter().map(|i| i.path.clone()).collect();
+    let state: tauri::State<'_, crate::AppState> = app.state();
+    let _ = super::cleanup::run_cleanup(state, paths).await;
+
+    // 3. OS residues
+    app.emit("autopilot-progress", serde_json::json!({
+        "step": "residues", "message": "Cleaning OS residues…"
+    })).ok();
+    let residues = super::cleanup::scan_os_residues().await.unwrap_or(
+        super::cleanup::CleanupReport { items: vec![], total_bytes: 0 }
+    );
+    let residue_ids: Vec<String> = residues.items.iter().map(|i| i.path.clone()).collect();
+    let state2: tauri::State<'_, crate::AppState> = app.state();
+    let _ = super::cleanup::clean_os_residues(state2, residue_ids).await;
+
+    // 4. Updates
     app.emit("autopilot-progress", serde_json::json!({
         "step": "updates", "message": "Checking for updates…"
     })).ok();
@@ -141,32 +165,12 @@ pub async fn run_autopilot(app: tauri::AppHandle) -> Result<HealthScore, String>
         let _ = super::updates::install_update(app.clone(), pkg.clone()).await;
     }
 
-    // 3. Cleanup
-    app.emit("autopilot-progress", serde_json::json!({
-        "step": "cleanup", "message": "Cleaning temporary files…"
-    })).ok();
-    let report = super::cleanup::scan_cleanup().await.unwrap_or(
-        super::cleanup::CleanupReport { items: vec![], total_bytes: 0 }
-    );
-    let paths: Vec<String> = report.items.iter().map(|i| i.path.clone()).collect();
-    let state: tauri::State<'_, crate::AppState> = app.state();
-    let _ = super::cleanup::run_cleanup(state, paths).await;
-
-    // 4. OS residues
-    app.emit("autopilot-progress", serde_json::json!({
-        "step": "residues", "message": "Cleaning OS residues…"
-    })).ok();
-    let residues = super::cleanup::scan_os_residues().await.unwrap_or(
-        super::cleanup::CleanupReport { items: vec![], total_bytes: 0 }
-    );
-    let residue_ids: Vec<String> = residues.items.iter().map(|i| i.path.clone()).collect();
-    let state2: tauri::State<'_, crate::AppState> = app.state();
-    let _ = super::cleanup::clean_os_residues(state2, residue_ids).await;
-
-    // 5. New score
+    // 5. New score (health)
     app.emit("autopilot-progress", serde_json::json!({
         "step": "done", "message": "Auto-pilot complete!"
     })).ok();
+
+    super::logging::log_info("AutoPilot: sequence complete");
 
     get_health_score().await
 }

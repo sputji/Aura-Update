@@ -1,7 +1,8 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -10,6 +11,12 @@ use crate::commands::config::AppState;
 
 /// Global log file handle — write-only, flushed after each entry.
 static LOG_FILE: Mutex<Option<fs::File>> = Mutex::new(None);
+/// Structured session log handle — JSONL.
+static SESSION_FILE: Mutex<Option<fs::File>> = Mutex::new(None);
+/// Last structured action (for crash payload correlation).
+static LAST_ACTION: Mutex<Option<String>> = Mutex::new(None);
+/// Session start instant for uptime diagnostics.
+static SESSION_START: OnceLock<Instant> = OnceLock::new();
 
 /// Initialize the rotating log system.
 /// - Creates a `logs/` directory in `data_dir`
@@ -19,9 +26,10 @@ static LOG_FILE: Mutex<Option<fs::File>> = Mutex::new(None);
 pub fn init_logging(data_dir: &Path) {
     let logs_dir = data_dir.join("logs");
     fs::create_dir_all(&logs_dir).ok();
+    SESSION_START.get_or_init(Instant::now);
 
     // Purge old logs — keep only the 3 most recent
-    purge_old_logs(&logs_dir, 3);
+    purge_old_logs(&logs_dir, 5);
 
     // Open today's log file (append mode)
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -39,6 +47,16 @@ pub fn init_logging(data_dir: &Path) {
         Err(e) => {
             eprintln!("[logging] Failed to open log file: {}", e);
         }
+    }
+
+    // Open today's structured session log
+    let session_path = logs_dir.join(format!("session_{}.jsonl", today));
+    if let Ok(file) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&session_path)
+    {
+        *SESSION_FILE.lock().unwrap() = Some(file);
     }
 }
 
@@ -96,6 +114,20 @@ fn write_system_dump_header() {
     log_info(&format!("RAM: {:.1} GB Total", ram_gb));
     log_info(&format!("App Version: {} (Admin Mode: {})", version, is_admin));
     log_info("=================================================");
+
+    log_action_event(
+        "session",
+        "app",
+        "startup",
+        "start",
+        Some("boot"),
+        None,
+        None,
+        Some(0),
+        None,
+        false,
+        &format!("os={os}; cpu={cpu}; ram_gb={:.1}; admin={is_admin}; version={version}", ram_gb),
+    );
 }
 
 /// Purge old log files, keeping only the `keep` most recent.
@@ -148,6 +180,58 @@ pub fn log_panic(message: &str) {
     write_log("PANIC", message);
 }
 
+pub fn log_action_event(
+    run_id: &str,
+    module: &str,
+    action: &str,
+    event: &str,
+    step: Option<&str>,
+    pid: Option<u32>,
+    exit_code: Option<i32>,
+    duration_ms: Option<u128>,
+    timeout_ms: Option<u64>,
+    user_cancelled: bool,
+    message: &str,
+) {
+    write_log(
+        "INFO",
+        &format!(
+            "[{}] {}:{}:{} {}",
+            run_id,
+            module,
+            action,
+            event,
+            message
+        ),
+    );
+
+    let record = serde_json::json!({
+        "ts": chrono::Local::now().to_rfc3339(),
+        "level": "INFO",
+        "run_id": run_id,
+        "module": module,
+        "action": action,
+        "event": event,
+        "step": step,
+        "pid": pid,
+        "exit_code": exit_code,
+        "duration_ms": duration_ms,
+        "timeout_ms": timeout_ms,
+        "user_cancelled": user_cancelled,
+        "message": message,
+    });
+
+    *LAST_ACTION.lock().unwrap() = Some(record.to_string());
+
+    if let Ok(mut guard) = SESSION_FILE.lock() {
+        if let Some(ref mut file) = *guard {
+            let _ = file.write_all(record.to_string().as_bytes());
+            let _ = file.write_all(b"\n");
+            let _ = file.flush();
+        }
+    }
+}
+
 fn write_log(level: &str, message: &str) {
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let line = format!("[{}] [{}] {}\n", timestamp, level, message);
@@ -184,6 +268,43 @@ pub fn get_latest_log_path(data_dir: &Path) -> Option<PathBuf> {
     log_files.last().cloned()
 }
 
+pub fn get_latest_session_log_path(data_dir: &Path) -> Option<PathBuf> {
+    let logs_dir = data_dir.join("logs");
+    let mut files: Vec<PathBuf> = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(&logs_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("jsonl")
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |n| n.starts_with("session_"))
+            {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files.last().cloned()
+}
+
+fn tail_lines(path: &Path, max_lines: usize) -> String {
+    if let Ok(content) = fs::read_to_string(path) {
+        let lines: Vec<&str> = content.lines().collect();
+        let start = lines.len().saturating_sub(max_lines);
+        return lines[start..].join("\n");
+    }
+    String::new()
+}
+
+fn session_uptime_sec() -> u64 {
+    SESSION_START
+        .get()
+        .map(|s| s.elapsed().as_secs())
+        .unwrap_or(0)
+}
+
 // ── Crash Report Commands ────────────────────────────────────────────
 
 /// Check if a crash report file exists from a previous session.
@@ -213,18 +334,21 @@ pub async fn send_crash_report(
         String::new()
     };
 
-    // Read last 50 lines of the latest log file
+    // Read latest text log tail
     let log_tail = if let Some(log_path) = get_latest_log_path(&data_dir) {
-        if let Ok(content) = fs::read_to_string(&log_path) {
-            let lines: Vec<&str> = content.lines().collect();
-            let start = if lines.len() > 50 { lines.len() - 50 } else { 0 };
-            lines[start..].join("\n")
-        } else {
-            String::new()
-        }
+        tail_lines(&log_path, 120)
     } else {
         String::new()
     };
+
+    // Read latest structured log tail
+    let structured_tail = if let Some(path) = get_latest_session_log_path(&data_dir) {
+        tail_lines(&path, 200)
+    } else {
+        String::new()
+    };
+
+    let last_action = LAST_ACTION.lock().unwrap().clone();
 
     const CRASH_ENDPOINT: &str = "https://api.auraneo.fr/aura-update/v1/crash-report";
     if !CRASH_ENDPOINT.starts_with("https://") {
@@ -236,7 +360,10 @@ pub async fn send_crash_report(
         "user_message": user_message,
         "os": std::env::consts::OS,
         "app_version": env!("CARGO_PKG_VERSION"),
+        "uptime_sec": session_uptime_sec(),
+        "last_action": last_action,
         "log_tail": log_tail,
+        "structured_tail": structured_tail,
     });
 
     let client = reqwest::Client::builder()

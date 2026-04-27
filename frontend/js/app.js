@@ -28,6 +28,7 @@ const state = {
     bloatwareCache: { items: null, scannedAt: 0 },
     appUpdateInfo: null,
     appUpdateInstalling: false,
+    maintenanceRuns: {},
 };
 
 /* ─── DOM cache ────────────────────────────────────────────── */
@@ -1410,13 +1411,13 @@ async function runAutoPilot() {
             try { await invoke('create_snapshot', { label: 'Auto-Pilot' }); } catch (_) { /* best-effort */ }
         }
 
-        // 1. Run auto-pilot (updates + cleanup + residues)
-        statusEl.textContent = t('autopilot_step_updates');
+        // 1. Run auto-pilot (cleanup + updates + residues)
+        statusEl.textContent = t('autopilot_step_cleanup');
         const score = await invoke('run_autopilot');
 
-        // 2. Additional cleanup scan
-        statusEl.textContent = t('autopilot_step_cleanup');
-        try { await invoke('scan_cleanup'); } catch (_e) { /* non-blocking */ }
+        // 2. Additional updates scan
+        statusEl.textContent = t('autopilot_step_updates');
+        try { await scanUpdates(); } catch (_e) { /* non-blocking */ }
 
         // NOTE: Bloatware purge removed from AutoPilot (v2) — manual only via Turbo tab
 
@@ -1949,7 +1950,32 @@ async function setupListeners() {
         const taskKey = d.task ? d.task.replace(/_/g, '-') : null;
         if (!taskKey) return;
         const outEl = $(`#out-${taskKey}`);
-        if (outEl && d.output) outEl.textContent = d.output;
+        const run = state.maintenanceRuns[d.task] || null;
+        const now = Date.now();
+
+        if (run) {
+            if (d.run_id) run.runId = d.run_id;
+            run.lastHeartbeatAt = now;
+            if (run.degraded && d.status !== 'error' && d.status !== 'canceled') {
+                run.degraded = false;
+            }
+        }
+
+        if (outEl && d.output) {
+            const prefix = d.run_id ? `[run_id=${d.run_id}] ` : '';
+            if (d.status === 'heartbeat') {
+                outEl.textContent = `${prefix}${t('maintenance_heartbeat') || 'Action en cours…'} (${Math.floor((d.duration_ms || 0) / 1000)}s)`;
+            } else {
+                outEl.textContent = prefix + d.output;
+            }
+        }
+
+        if (d.status === 'canceled' && outEl) {
+            outEl.textContent = t('maintenance_canceled') || 'Action annulée.';
+        }
+        if (d.status === 'error' && String(d.output || '').toLowerCase().includes('timeout') && outEl) {
+            outEl.textContent = t('maintenance_timeout') || 'Action interrompue: délai dépassé.';
+        }
     });
 }
 
@@ -2033,8 +2059,20 @@ function bindEvents() {
         runMaintenanceTask('update_apps', 'maintenance_update_apps', 'btnMaintUpdateApps'));
     $('#btnMaintRepairSystem').addEventListener('click', () =>
         runMaintenanceTask('repair_system', 'maintenance_repair_system', 'btnMaintRepairSystem'));
+    if ($('#btnCancelRepairSystem')) {
+        $('#btnCancelRepairSystem').addEventListener('click', () => cancelMaintenanceTask('repair_system'));
+    }
     $('#btnMaintCleanSystem').addEventListener('click', () =>
         runMaintenanceTask('clean_system', 'maintenance_clean_system', 'btnMaintCleanSystem'));
+    if ($('#btnCancelCleanSystem')) {
+        $('#btnCancelCleanSystem').addEventListener('click', () => cancelMaintenanceTask('clean_system'));
+    }
+    if ($('#btnCancelUpdateApps')) {
+        $('#btnCancelUpdateApps').addEventListener('click', () => cancelMaintenanceTask('update_apps'));
+    }
+    if ($('#btnCancelUpdateGit')) {
+        $('#btnCancelUpdateGit').addEventListener('click', () => cancelMaintenanceTask('update_git'));
+    }
 
     // Settings modal
     $('#btnCloseSettings').addEventListener('click', closeSettings);
@@ -2873,6 +2911,7 @@ globalThis.manualCheckAppUpdate = manualCheckAppUpdate;
  */
 async function runMaintenanceTask(taskId, command, btnId) {
     const btn = $(`#${btnId}`);
+    const btnCancel = $(`#btnCancel${taskId.split('_').map(v => v[0].toUpperCase() + v.slice(1)).join('')}`);
     const progEl = $(`#prog-${taskId.replace(/_/g, '-')}`);
     const outEl = $(`#out-${taskId.replace(/_/g, '-')}`);
     const card = btn ? btn.closest('.maintenance-card') : null;
@@ -2886,6 +2925,24 @@ async function runMaintenanceTask(taskId, command, btnId) {
 
     if (progEl) progEl.classList.remove('hidden');
     if (outEl) outEl.textContent = t('maintenance_running') || 'En cours…';
+    if (btnCancel) btnCancel.classList.remove('hidden');
+    state.maintenanceRuns[taskId] = {
+        startedAt: Date.now(),
+        lastHeartbeatAt: Date.now(),
+        degraded: false,
+        canceled: false,
+        runId: '',
+        watchdog: setInterval(() => {
+            const run = state.maintenanceRuns[taskId];
+            if (!run) return;
+            if (!run.degraded && Date.now() - run.lastHeartbeatAt > 15000) {
+                run.degraded = true;
+                if (outEl) {
+                    outEl.textContent = (t('maintenance_stalled') || 'Aucune progression détectée récemment…') + '\n' + (outEl.textContent || '');
+                }
+            }
+        }, 3000),
+    };
 
     try {
         const result = await invoke(command);
@@ -2897,12 +2954,29 @@ async function runMaintenanceTask(taskId, command, btnId) {
         if (card) card.classList.add('error');
         showToast(String(err), 'error');
     } finally {
+        if (state.maintenanceRuns[taskId]?.watchdog) {
+            clearInterval(state.maintenanceRuns[taskId].watchdog);
+        }
+        delete state.maintenanceRuns[taskId];
         if (btn) {
             btn.disabled = false;
             btn.textContent = originalLabel || t('btn_run') || 'Exécuter';
         }
+        if (btnCancel) btnCancel.classList.add('hidden');
         const fill = progEl ? progEl.querySelector('.maintenance-progress-fill') : null;
         if (fill) fill.classList.remove('indeterminate');
+    }
+}
+
+async function cancelMaintenanceTask(taskId) {
+    try {
+        if (state.maintenanceRuns[taskId]) {
+            state.maintenanceRuns[taskId].canceled = true;
+        }
+        await invoke('maintenance_cancel_task', { task: taskId });
+        showToast(t('maintenance_canceled') || 'Action annulée.', 'warning');
+    } catch (e) {
+        showToast(t('error') + ': ' + e, 'error');
     }
 }
 

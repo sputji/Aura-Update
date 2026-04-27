@@ -258,6 +258,7 @@ pub fn run() {
             commands::maintenance::maintenance_update_apps,
             commands::maintenance::maintenance_repair_system,
             commands::maintenance::maintenance_clean_system,
+            commands::maintenance::maintenance_cancel_task,
             // ── Remote Dashboard ─────────────────────────────
             commands::remote::start_remote,
             commands::remote::stop_remote,

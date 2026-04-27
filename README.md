@@ -1,7 +1,7 @@
 # 🔄 Aura Update — Health Center
 
 > Centre de santé système complet pour Windows, macOS et Linux.
-> **v2.2.8** — Dernière version stable
+> **v2.2.9** — Dernière version stable
 
 <p align="center">
   <img src="frontend/icons/icon.png" alt="Aura Update" width="128" />
@@ -128,6 +128,34 @@ Toute redistribution non autorisée est interdite.
 
 - **Site web** : [auraneo.fr](https://auraneo.fr)
 - **Email** : contact@auraneo.fr
+
+---
+
+## 📋 Changelog v2.2.8
+
+## 📋 Changelog v2.2.9
+
+### 🔭 Observabilité & Logs structurés (P0)
+- 🧩 **Nouveau moteur d'exécution instrumenté** — Ajout de `run_logged_command` côté backend Rust pour les actions de maintenance critiques (Git, Apps, DISM, SFC, nettoyage).
+- 🫀 **Heartbeat anti-freeze** — Emission automatique toutes les 5 secondes pendant les tâches longues afin d'indiquer que l'action est toujours active.
+- 🧾 **Logs corrélés par `run_id`** — Chaque action journalise désormais `start/progress/heartbeat/done/error/canceled` avec corrélation complète frontend/backend.
+- 📊 **Journal JSON session** — Nouveau fichier `session_YYYY-MM-DD.jsonl` contenant: `ts`, `run_id`, `module`, `action`, `event`, `pid`, `exit_code`, `duration_ms`, `timeout_ms`, `message`.
+- 🚨 **Crash report enrichi** — Ajout du `last_action`, de l'`uptime_sec`, du `structured_tail` JSONL et d'un tail texte élargi pour accélérer le diagnostic.
+
+### 🛠️ Fix Réparation système (P1)
+- 🧱 **Découpage DISM/SFC** — Exécution séparée et tracée de `DISM /restorehealth` puis `SFC /scannow` (plus de boîte noire monolithique).
+- ⏱️ **Timeouts robustes** — Timeouts explicites par commande, avec arrêt propre si dépassement.
+- ⛔ **Annulation utilisateur** — Boutons `Annuler` ajoutés pour les tâches de maintenance longues, avec kill du processus et statut `canceled`.
+
+### 🎨 UX stabilité (P2)
+- 🧭 **Maintenance plus lisible** — Affichage en temps réel de l'état (`run_id`, heartbeat, timeout, annulation).
+- 🟠 **Mode dégradé visuel** — Alerte UI si aucun heartbeat récent (évite les faux gels silencieux).
+- 🚗 **Auto-Pilote réaligné** — Séquence backend: Nettoyage → Résidus → Updates → Santé.
+
+### 🚀 Déploiement v2.2.9 (P4)
+- 🔖 **Version alignée** dans `Cargo.toml`, `package.json`, `tauri.conf.json`.
+- 🔄 **Updater actif** dans la config Tauri avec endpoint release + clé publique valide.
+- 🧱 **Workflow release conservé** avec `updater.json` dynamique et clés plateformes Windows (`windows-x86_64`, `windows-x86_64-nsis`, `windows-x86_64-msi`).
 
 ---
 

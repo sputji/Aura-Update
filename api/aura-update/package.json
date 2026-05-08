@@ -1,0 +1,13 @@
+{
+  "name": "aura-update-crash-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aura Update — Crash Report API (receives crash reports and sends email notifications)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
+}

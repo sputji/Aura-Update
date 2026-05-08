@@ -1,0 +1,15 @@
+
+# --- Bouclier de Securite Aura Neo ---
+.env
+.env.*
+!.env.example
+_Configs/
+_Databases/
+AuraServices/
+dump.pm2
+aura_data/
+node_modules/
+dist/
+.next/
+
+# --- Bouclier de Sécurité Aura Neo ---
